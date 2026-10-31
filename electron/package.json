@@ -1,0 +1,67 @@
+{
+  "name": "terratone-desktop",
+  "version": "2.0.0",
+  "private": true,
+  "description": "TerraTone desktop shell (Electron)",
+  "author": "TerraTone",
+  "main": "main.cjs",
+  "scripts": {
+    "copy:web": "node copy-dist.mjs",
+    "start": "npm run build --prefix .. && npm run copy:web && electron .",
+    "build": "npm run build --prefix .. && npm run copy:web && electron-builder && node ../scripts/stage-installers.mjs",
+    "build:win": "npm run build --prefix .. && npm run copy:web && electron-builder --win nsis --x64 && node ../scripts/stage-installers.mjs",
+    "build:mac": "npm run build --prefix .. && npm run copy:web && electron-builder --mac dmg && node ../scripts/stage-installers.mjs"
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.terratone.app",
+    "productName": "TerraTone",
+    "copyright": "Copyright © 2026 TerraTone",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "build/icon.png",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "main.cjs"
+    },
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "TerraTone-Windows-Setup.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.education",
+      "artifactName": "TerraTone-macOS.${ext}"
+    },
+    "dmg": {
+      "artifactName": "TerraTone-macOS.${ext}"
+    }
+  }
+}

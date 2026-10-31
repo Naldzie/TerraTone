@@ -1,0 +1,160 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: Desktop (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            artifact: TerraTone-Windows-Setup.exe
+            builder_args: --win nsis --x64
+          - platform: macos-latest
+            artifact: TerraTone-macOS.dmg
+            builder_args: --mac dmg --universal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Install desktop build dependencies
+        working-directory: electron
+        run: npm ci
+
+      - name: Copy web build into Electron shell
+        working-directory: electron
+        run: node copy-dist.mjs
+
+      - name: Build desktop installer
+        working-directory: electron
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder ${{ matrix.builder_args }}
+
+      - name: Stage Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = 'electron/release/TerraTone-Windows-Setup.exe'
+          if (-not (Test-Path $installer)) { throw 'NSIS installer not found' }
+          Copy-Item $installer 'TerraTone-Windows-Setup.exe'
+
+      - name: Stage macOS installer
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg='electron/release/TerraTone-macOS.dmg'
+          if [ ! -f "$dmg" ]; then echo 'DMG not found' >&2; exit 1; fi
+          cp "$dmg" 'TerraTone-macOS.dmg'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - run: npm ci
+
+      - run: npm run android:sync
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Stage APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk TerraTone-Android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TerraTone-Android.apk
+          path: TerraTone-Android.apk
+          if-no-files-found: error
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - run: npm run build
+        env:
+          VITE_GITHUB_REPO: ${{ github.repository }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TerraTone-Web
+          path: dist
+          if-no-files-found: error
+
+  release:
+    name: Publish release assets
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [desktop, android, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/TerraTone-Windows-Setup.exe/TerraTone-Windows-Setup.exe
+            artifacts/TerraTone-macOS.dmg/TerraTone-macOS.dmg
+            artifacts/TerraTone-Android.apk/TerraTone-Android.apk

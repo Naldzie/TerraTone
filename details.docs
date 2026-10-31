@@ -1,0 +1,417 @@
+# TerraTone — Details: Features, Libraries & Simulations
+
+TerraTone ("Hear the Pulse of Our Planet") is an offline-capable Earth-science sonification PWA:
+pick a dataset (bundled demo, live NASA data, or your own CSV/JSON), watch it as a chart, and hear it
+as synchronized sound. It also ships a Tornado Simulator and a library of nine more 3D hazard-training
+worlds, each with its own procedural audio engine.
+
+Everything runs in the browser. No account, no paid API, no backend. All simulated values and sounds
+are labeled as simulated; AI output is labeled as AI; nothing pretends to be a real recording or forecast.
+
+---
+
+## 1. Features (detailed)
+
+### 1.1 Explore (dashboard)
+- Logo + connection badge: Online / Offline / Using cached data.
+- Featured datasets, search box, category filters (only populated categories shown).
+- Recently played list, "how it works" explainer, per-dataset source attribution.
+
+### 1.2 Listen (visualization + sonification)
+- Canvas time-series chart: playhead, legend, units, color scale, missing-data bands, timeline
+  scrubber, speed control, transports (play / pause / resume / restart / stop), date labels.
+- Web Audio sonification engine, deterministic mappings:
+  - value -> pitch on a log scale,
+  - magnitude -> safe loudness band (compressor-capped),
+  - precipitation-style note density,
+  - longitude -> stereo pan, time -> note sequence.
+- 4 sound profiles: Musical (pentatonic), Ambient (slow pads), Minimal (short sine blips),
+  Scientific (unquantized linear pitch + data ticks).
+- Master volume, mute, tone preview, audio-only mode, user-gesture audio unlock, clean node teardown.
+- Accessibility companions: captions log per frame, text data summary.
+- Optional "Explain this" via Gemini, always labeled AI-generated, never NASA data; answers can be read
+  aloud with the browser's built-in voice (voice on/off persisted, explicit read/stop, works offline once
+  generated).
+
+### 1.3 Live hub (online)
+- NASA EONET natural-events feed (keyless): category filters, interactive Leaflet events map,
+  IndexedDB-cached copies for offline viewing.
+- One-tap launch from a live wildfire / volcano / storm / quake event into the matching simulator.
+- NASA EPIC live Earth photos and APOD space bonus (uses your key or the shared DEMO_KEY).
+
+### 1.4 Tornado Simulator (launched from the Sims tab)
+- Real-time Three.js world in a lazy-loaded chunk (zero impact on the main bundle).
+- Controllable astronaut-like explorer: third-person camera; WASD/arrows + Shift + Space + Esc on
+  desktop; joystick + drag-camera + walk/run toggle + optional gyro on mobile.
+- Rotating funnel with debris/wind particles, tumbling wreckage orbiting it, funnel-lift that picks
+  the explorer off the ground up close.
+- Roaming funnel with a yellow catch ring: cross it to get picked up, struggle out, or get flung clear.
+- Trees flattened in its path; scattered bystanders recover after being hit.
+- Rideable helicopter (hold Run to climb) and car parked by spawn — board with E; both are large and
+  visible across the map, both snatchable by the funnel.
+- Bystanders steal parked vehicles for joyrides (the funnel grabs those too).
+- Storm clouds, lightning, terrain/roads/trees/buildings with collision, wandering MC-style NPC
+  bystanders, distance rings.
+- Fully procedural Web Audio storm engine (synthesized only, never a real recording): rumble + wind +
+  whistle + gusts + thunder + debris, driven continuously by character->funnel distance via a smooth
+  non-linear curve; PannerNode spatial audio with stereo fallback; limiter-capped output.
+- 5 presets (Distant -> Extreme + Custom), live waveform/spectrum from an AnalyserNode, per-layer
+  mixer, Low/Med/High graphics, pause/resume/reset/mute, educational disclaimer.
+- Works offline after first load (service worker caches `/assets/` chunks).
+
+### 1.5 Simulator Library (Sims tab)
+- The Tornado Simulator (dedicated engine, section 1.4 + 3.2) plus nine training worlds on a shared
+  engine (generic EnvSim 3D world + AmbienceEngine procedural audio
++ pure per-hazard mappings), each with its own environment, sound design, and parameters — full breakdown
+in section 3. (Upgrade in progress: the 10 planned worlds in `PLAN.md` — flash flood, landslide and
+drought have shipped.)
+Every sim card shows its own hand-drawn procedural SVG scene (inline `SimArt` — offline, no image files,
+screen-reader labeled) using the sim's accent palette. Category cards, difficulty badges, presets, launch buttons; all values labeled simulated,
+with safety guidance and offline replay.
+
+### 1.6 Earth Jukebox Studio
+- Pipeline: dataset -> range -> mapping -> preview -> synced play -> save preset -> export/share JSON.
+- Optional clip recording via MediaRecorder (compatibility notes shown; `audio/webm;codecs=opus` preferred).
+- Time-range applies to saved presets/exports; live playback uses the full series.
+
+### 1.7 3D music view (Listen / Studio player)
+- Lazy three.js **data landscape** (`components/MusicViz3D.tsx`) with bloom post-processing (EffectComposer +
+  UnrealBloomPass + OutputPass): one column per sampled frame along the time axis — up to 150 columns,
+  evenly subsampled for long records with an honest on-screen note ("1 column ≈ N frames"). Column height
+  and color encode the value on a semantic ramp chosen per dataset family: temperature → blue–white–red
+  diverging *centered at zero* for signed anomalies; sea level / tides / sea ice / glacier / ocean and
+  precipitation → deep blue → aqua; fires / storm winds / lightning / urban heat → dark gold → hot red;
+  vegetation / CO₂ → dim → bright green; sun & space weather → indigo → magenta.
+- Playhead: the played column pulses (with RMS + note accents), a floor ring, beacon sphere, light column
+  and a floating canvas label ("time · value · units", "no data" for gaps) track it. Each scheduled note
+  fires a spinning shard from the playhead column top (x offset = stereo pan) via the engine `onNote` bus.
+- Master-bus level: the post-master `AnalyserNode` RMS gently pumps bloom strength, the playhead pulse
+  and beacon scale (idle mode is labeled in the overlay).
+- Atmosphere: glow backdrop, starfield, grid, fog. Camera: drag to orbit (damped), follows the playhead
+  while playing (smooth x-track), slow cinematic orbit of the whole record when idle; reduce-motion
+  disables the idle auto-orbit. On-screen legend shows the ramp gradient, min/max + units.
+- WebGL failure falls back to "WebGL unavailable" with chart + captions intact; pixel ratio capped;
+  dispose-safe on unmount; toggleable ("🧊 3D music view") and hidden in audio-only mode. Ships as a
+  ~10 KB gzip lazy chunk (includes the bloom passes).
+
+### 1.8 Library (datasets)
+- 17 bundled synthetic demos installed on first launch (temperature, CO₂, sea level, monsoon, fires,
+  vegetation, tides, sunspots, seismic, sea ice, lightning, Kp, aurora, urban heat, coral, cyclone wind, glacier).
+- Every dataset card (Explore featured + Library) shows a category-tinted sparkline thumbnail of its real
+  values (`components/DataArt.tsx`, inline SVG, offline, demo-labeled).
+- Search / filter / sort; states downloaded / pending / failed / cancelled; offline badges.
+- CSV + JSON import with validation (512 KB / 5,000-point caps) and row-level error reporting.
+- Download with progress + cancel, delete, storage usage, interrupted-download tolerance,
+  clear "cannot fetch live data offline" messaging.
+
+### 1.9 Talking NPCs (every simulator)
+- Walk up to any named bystander and press T (or the Talk button).
+- Speech bubble floats at the NPC's head (tail pointing down at them); quick questions and your input
+  dock to the bottom of the view.
+- NPC stops and turns to face you while chatting.
+- Answers are read aloud with the browser's built-in voice (SpeechSynthesis): toggle persisted,
+  click any reply to replay.
+- Answers come through your Gemini key, grounded in NASA research notes plus live sim state, with real
+  NASA source links and honest AI labeling.
+
+### 1.10 Character editor
+- Headgear (helmet/cap/bare), 3 visors + tints, 3 faces, 4 hairstyles, 5 skin tones, 6 suits +
+  6 accents, 3 builds; presets + randomize; live spinning 3D preview.
+- Applied instantly in every simulator, saved on-device; every NPC bystander gets its own randomized
+  look from the same system. Lives on the Settings page.
+
+### 1.11 Minimap
+- Live minimap of each sim with hazard / NPC / vehicle blips and labels, heading, distance/bearing
+  chips, and culling for off-view events.
+
+### 1.12 Controls & keyboard
+- Desktop: WASD/arrows, Shift (run), Space (jump; climb while riding the sub), Esc (release pointer),
+  E (board/exit vehicles), T (talk to nearby NPC).
+- Mobile: virtual joystick, drag camera, walk/run toggle, optional gyro.
+- Inputs are ignored while typing in chat; releasing keys stops movement immediately; window blur
+  failsafe clears stuck keys.
+
+### 1.13 Offline / PWA
+- `manifest.webmanifest` + hand-rolled service worker (`public/sw.js`): app-shell + data caches,
+  `/assets/` chunks cached for sims.
+- IndexedDB (`terratone`): datasets, experiences, settings, EONET cache.
+- Bundled synthetic demos installed on first launch; installable on Android (HTTPS required),
+  Add to Home Screen on iOS.
+
+### 1.14 Accessibility (Access tab)
+- Semantic HTML, skip link, keyboard map, visible focus, high-contrast theme, 4 text sizes,
+  reduce-motion, quiet mode, color-independent status badges.
+- Honest framing throughout: "sound is a companion, not a conclusion."
+
+### 1.15 Settings
+- Default sound profile, volume, reduce-motion and related preferences.
+- Character editor (AvatarStudio).
+- API keys entry was removed (Oct 2026); keys now come from `frontend/.env` at build time only.
+
+### 1.16 Optional keyed extras (online only)
+- NASA EPIC live Earth photos and APOD in the Live tab (your key, else shared DEMO_KEY).
+- Gemini explanations of any sonification on Listen and NPC chat answers — always labeled AI-generated;
+  both can be read aloud with the browser's built-in voice.
+- Keys live in `frontend/.env` (`VITE_NASA_API_KEY`, `VITE_GEMINI_API_KEY`, git-ignored, never committed;
+  see `.env.example`). Rebuild after editing `.env` (values bake in at build time).
+
+### 1.17 Tests
+- 137 Vitest unit tests across 15 files (normalization, missing/outlier handling, audio bounds,
+  import/export, timeline sync, storm distance curve, level mapping, bearings, movement/collision,
+  presets, hazard audio mappings, tremor/drift/HUD, EPIC URL builder, Gemini helpers, on-device key
+  storage, error-boundary recovery, EONET geometry/mapping/filtering, APOD parsing, per-sim tick modes,
+  sub-bass curves, saturation curve, avatar profiles/persistence/builder, ocean depth gauge, NASA guide
+  knowledge, NPC names, notice/emote behavior, flash-flood water-level model, slope-stability + reservoir-balance models,
+  sim illustrations, dataset-sparkline art,
+  bundled-demo integrity + range honesty, data-landscape layout and
+  semantic ramps, AI-voice speech cleanup) — all passing.
+  Run: `npx vitest run`.
+
+### 1.18 Realistic procedural audio (shared)
+- Breathing sine sub-bass under every rumble (`attachSubBass`), gentle saturation glue (`softClipCurve`),
+  two-stage thunder (close crack + rolling tail with re-strike via `thunderStrike`), resonant
+  fire/debris pops, rain patter that follows the rainfall slider, pitch-dropping bubble bloops underwater.
+- All synthesized locally, all limiter-capped for safe output.
+
+---
+
+## 2. Libraries
+
+### 2.1 Runtime dependencies
+
+| Package | Version | Purpose / where used |
+|---|---|---|
+| `react` | ^19.3.1 | UI (all pages/components), hooks-based architecture |
+| `react-dom` | ^19.3.1 | DOM renderer (`main.tsx`) |
+| `three` | ^0.186.1 | All 3D worlds: TornadoScene + EnvSim + packs, avatars, vehicle/NPC meshes |
+| `leaflet` | ^1.9.4 | Interactive EONET events map (`EonetMap.tsx`), code-split chunk |
+
+### 2.2 Dev dependencies / tooling
+
+| Package | Version | Purpose |
+|---|---|---|
+| `vite` | ^8.3.4 | Dev server (5173), production build (`dist/`), chunk splitting |
+| `@vitejs/plugin-react` | ^6.1.2 | React fast-refresh + JSX transform |
+| `typescript` | ~5.9.0 | Strict type checking (`tsc --noEmit` runs before every build) |
+| `vitest` | ^5.0.5 | Unit test runner (`vitest run`) |
+| `jsdom` | ^30.1.3 | DOM environment for tests |
+| `@testing-library/react` | ^16.3.3 | Component tests (error-boundary recovery) |
+| `@testing-library/jest-dom` | ^7.0.1 | DOM matchers |
+| `@types/react`, `@types/react-dom` | ^19.3.x | React typings |
+| `@types/three` | ^0.186.0 | three.js typings |
+| `@types/leaflet` | ^1.9.22 | Leaflet typings |
+
+### 2.3 Platform APIs used (no library)
+- Web Audio API (sonification, ambience, storm engine, analysers, panners, limiter via WaveShaper).
+- MediaRecorder (Studio clip capture). SpeechSynthesis (NPC + AI-explanation voice). IndexedDB (offline storage).
+- Service Worker Cache API (offline). WebGL via three. Pointer/Keyboard/Motion events (controls/gyro).
+
+### 2.4 Internal modules ("libraries" of the app)
+
+| Module | Role |
+|---|---|
+| `audio/engine.ts` | Dataset sonification: profiles, pitch/density mapping, pan, captions sync |
+| `audio/stormEngine.ts` | Procedural tornado storm soundscape: distance curve, layers, presets, mixer |
+| `audio/ambience.ts` | Generic procedural environment audio engine for the 9 hazard sims |
+| `audio/realism.ts` | Sub-bass attach, saturation curve, two-stage thunder |
+| `lib/dataUtils.ts` | Normalization, import validation, math helpers |
+| `lib/nasa.ts` | NASA POWER point climatology, CMR collection search, GIBS WMTS URL helper, EIC deep link |
+| `lib/eonet.ts` | EONET feed parsing, geometry mapping, category filtering |
+| `lib/epic.ts` | EPIC photo URL builder |
+| `lib/apod.ts` | APOD parsing |
+| `lib/gemini.ts` | Gemini prompt/model/response helpers (keyed, optional) |
+| `lib/keys.ts` | Key resolution (env / per-device storage) with DEMO_KEY fallback |
+| `lib/tts.ts` | Browser speech-synthesis helpers (availability, markdown-to-speech cleanup) |
+| `lib/nasaGuide.ts` | NASA research notes per hazard topic (grounds NPC chat) |
+| `lib/db.ts` | IndexedDB (datasets, experiences, settings, EONET cache) |
+| `data/samples.ts` | 17 bundled synthetic demos (temp, CO₂, sea level, monsoon, fires, vegetation, tides, sunspots, seismic, sea ice, lightning, Kp, aurora, urban heat, coral, cyclone wind, glacier) |
+| `sim/stormTypes.ts` | Pure storm math: presets, distance curve, world constants |
+| `sim/TornadoScene.ts` | Tornado world: funnel, vehicles, catch ring, NPCs, player physics |
+| `sim/hazards.ts` | Hazard registry: params, presets, layers, gains, HUD, gauges, safety copy |
+| `sim/EnvSim.ts` | Shared 3D world engine (terrain, vehicles, NPCs, hazard-to-player vectors) |
+| `sim/packs/*.ts` | Nine distinct environments (hurricane, earthquake, volcano, ocean, wildfire, tsunami, flood, landslide, drought) |
+| `sim/npc.ts` | NPC names, wander/flee/face logic, talk range, notice emotes (`pickEmote`, seeded) |
+| `sim/avatar.ts` | Avatar profiles, persistence, randomization |
+| `store/AppContext.tsx` | Datasets, downloads, settings, connection state |
+| `components/*` | TimeChart, Player, viewports (Tornado/Sim), audio panels, AudioViz, SeismicPanel, Minimap, NpcChat, Eonet map/panel, Epic/APOD panels, AiExplain, AvatarStudio, Bits, ErrorBoundary, SimArt, DataArt, MusicViz3D |
+| `pages/*` | Explore, Listen, Storm (Tornado), Sims, HazardSim, Library, Studio, Access, Settings, Online |
+
+### 2.5 Config & scripts
+- `vite.config.ts`: React plugin; dev 5173 / preview 4173; sourcemaps; Vitest jsdom + globals +
+  `src/tests/setup.ts`.
+- `tsconfig.json`: strict mode.
+- `public/`: `manifest.webmanifest`, hand-rolled `sw.js`, icons.
+- `scripts/generate-icons.mjs`: PWA icon generation.
+- `.env.example`: optional `VITE_POWER_BASE`, `VITE_GIBS_BASE` (+ keyed extras).
+
+---
+
+## 3. Simulations (detailed)
+
+### 3.1 Shared engine (all 9 hazard sims)
+- `EnvSim`: Three.js world with terrain, roads, trees/buildings, colliders; player controller
+  (walk/run/jump, vehicles); NPC bystanders (2–6 by quality tier, toggleable) that flee the hazard
+  and notice the visitor — within ~24 m they may pause, turn toward you and pop a weighted random
+  emote bubble (👋 😄 👍 ❗ ❤️, sprite above the head, deterministic per seed, 18–44 s cooldown,
+  cancelled while fleeing or chatting);
+  hazard vector = distance + bearing from the hazard point to the player (audio, HUD, NPC threat,
+  minimap all use the same source).
+- `AmbienceEngine`: procedural noise-layer audio (each hazard defines its own layer set below),
+  smooth non-linear distance->intensity curve, limiter-capped output, per-layer mixer.
+- Each hazard is a pure `HazardDef` (parameters, presets, gains, HUD, gauges, safety copy) plus a
+  `Feature(ctx)` pack that builds its distinct environment.
+- Shared UI: launch cards with category/difficulty/presets, parameter sliders, audio mixer +
+  waveform/spectrum, minimap, pause/reset, HUD chips, safety note, "simulated" labels everywhere.
+  Every card shows a procedural SVG scene (`components/SimArt.tsx`) matching the sim's accent palette.
+
+### 3.2 Tornado Simulator
+- Category: Storms & wind. Dedicated engine (`TornadoScene` + `stormEngine`), not EnvSim.
+- Parameters (Custom preset): intensity, wind speed (Km/h sim), wind volume, rumble depth, gust rate,
+  distance.
+- Presets: Distant Storm (0.15 / 40 km/h / dist 320), Developing Tornado (0.4 / 110 / 220),
+  Strong Tornado (0.7 / 180 / 150), Extreme Tornado (1 / 260 / 110, audio stays capped), Custom.
+- Environment/interactions: rotating funnel, debris + wind particles, tumbling wreckage, yellow catch
+  ring (pickup / struggle out / flung clear), funnel-lift, flattened trees, recovering bystanders,
+  rideable helicopter (climb with Run) and car (board with E), NPC vehicle joyrides, storm clouds,
+  lightning, distance rings.
+- Audio layers: rumble, wind, whistle, gusts, thunder, debris — spatially panned (PannerNode with
+  stereo fallback), driven by distance curve; analyser waveform/spectrum; per-layer mixer.
+
+### 3.3 Hurricane Simulator
+- Category: Storms & wind. Difficulty: Intense. Spawn: 280/190/130 m from the eye.
+- A **drifting eye** that wanders: speed scales with intensity (1.5 + intensity * 4.5 m/s), steers
+  back when farther than 80 m from origin, clamped to a ±70 m box; distance, audio, NPC threat,
+  bearings, and the minimap all follow it.
+- Parameters: storm intensity (0.1–1), rainfall rate (0–1), wind speed (60–280 km/h sim),
+  storm direction (0–360°).
+- Presets: Tropical Storm (0.3 / 0.4 / 90 / 40), Major Hurricane (0.7 / 0.7 / 190 / 40),
+  Extreme Landfall (1 / 1 / 270 / 40).
+- Environment: eyewall, rain bands, surf, storm direction, thrashing palms, flying debris, foam rings.
+- Audio layers: rumble (brown low-pass 80 Hz), wind (white band-pass 500 Hz), rain (white high-pass
+  4.5 kHz), surf (brown low-pass 220 Hz).
+- HUD: wind (sim), rain (sim), eye distance, eye bearing. Safety: never chase real hurricanes.
+
+### 3.4 Earthquake Simulator
+- Category: Geology. Difficulty: Moderate. Spawn: 150 m from epicenter (all presets).
+- Parameters: magnitude (3–8.5 Mw sim), tremor duration (5–60 s), camera shake (0–1).
+- Presets: Minor Tremor (4 / 10 s / 0.5), Major Quake (6.5 / 25 / 0.8), Great Quake (8.2 / 45 / 1).
+- Environment: triggered tremors (button), camera shake, live seismograph drawing P/S/coda phases,
+  swaying lamps, falling rubble, sparking power lines.
+- Audio layers: rumble (brown low-pass 60 Hz), grind (white band-pass 240 Hz), creak (white band-pass
+  900 Hz, high resonance).
+- HUD: magnitude, shaking %, epicenter distance, duration. Safety: Drop, Cover, and Hold On.
+
+### 3.5 Volcano Simulator
+- Category: Geology. Difficulty: Intense. Spawn: 220/170/140 m from crater.
+- Parameters: eruption intensity (0.05–1), ash emission (0–1), lava output (0–1).
+- Presets: Strombolian Bursts (0.35 / 0.3 / 0.6), Vulcanian Column (0.65 / 0.7 / 0.4),
+  Plinian Blast (1 / 1 / 0.7).
+- Environment: slope-hugging lava flows, churning crater lava lake, ballistic bombs, ash column with
+  fallout, steaming fumaroles, gas bursts, solid crater.
+- Audio layers: rumble (brown low-pass 70 Hz), roar (white band-pass 350 Hz), ash wind (1400 Hz),
+  hiss (high-pass 5.2 kHz).
+- HUD: eruption, ash, crater distance, crater bearing. Safety: pyroclastic flows kill from kilometers away.
+
+### 3.6 Deep Ocean Simulator
+- Category: Oceans. Difficulty: Gentle. Spawn: 120 m (all presets).
+- Parameters: depth (5–200 m), current strength (0–1), water temperature (−2–30 °C).
+- Presets: Sunlit Reef (12 m / 0.25 / 24 °C), Twilight Zone (120 / 0.55 / 8), Abyss Edge (195 / 0.3 / 2).
+- Environment: diver, bubbles (pitch-dropping bloops), whale tone, current drift, rideable scuba sub,
+  fish schools, patrolling sharks, pulsing jellyfish, a passing whale, marine snow, seagrass.
+- Audio layers: wash (brown low-pass 300 Hz), flow (white band-pass 700 Hz), sparkle (high-pass 6 kHz),
+  geo (brown low-pass 55 Hz — geological groans at depth).
+- HUD: depth, current, temperature, light zone + **depth gauge** (~m / ~atm / zone).
+
+### 3.7 Wildfire Simulator
+- Category: Land & forests. Difficulty: Intense. Spawn: 200/160/130 m from the front.
+- Parameters: fire intensity (0.05–1), vegetation dryness (0–1), wind speed (0–60 km/h sim),
+  wind direction (0–360°).
+- Presets: Smoldering Edge (0.25 / 0.4 / 8 / 90), Crown Run (0.7 / 0.8 / 30 / 90),
+  Megafire Blowup (1 / 1 / 55 / 90).
+- Environment: flame front, smoke and embers, arcing firebrands, glowing ground embers, fleeing deer.
+- Audio layers: rumble (brown low-pass 110 Hz), roar (white band-pass 420 Hz), wind (800 Hz).
+- HUD: front intensity, dryness, fireline distance, wind speed + direction.
+  Safety: leave early, never outrun a front.
+
+### 3.8 Tsunami Simulator
+- Category: Oceans. Difficulty: Intense. Spawn: 240/170/120 m from the front.
+- Parameters: wave height (2–20 m), wave speed (30–120 km/h sim), surge run-up (0–1),
+  sea temperature (−2–30 °C).
+- Presets: Distant Swell (4 m / 40 / 0.3 / 20 °C), Coastal Warning (10 / 75 / 0.55 / 17),
+  Mega Tsunami (20 / 115 / 0.8 / 15).
+- Environment: advancing wave front with inland surge, spray, floating debris, stilt houses.
+- Audio layers: rumble (brown low-pass 55 Hz), surge (brown low-pass 160 Hz), rush (white band-pass
+  420 Hz), spray (high-pass 5.5 kHz).
+- HUD: wave height, wave speed, front distance, ETA + **wave-energy gauge** (height % / speed %).
+  Safety: strong/long shaking or the sea pulling back means go to high ground immediately.
+
+### 3.9 Flash Flood Simulator
+- Category: Water & floods. Difficulty: Moderate. Spawn: 140/120/100 m from the river gauge.
+- Illustrative model (`floodLevel`): rainfall × soil intake -> runoff, retention by drainage,
+  relief concentrates the peak; returns a simulated water level 0..1 (unit-tested, bounded).
+- Parameters: rainfall rate (0–120 mm/h sim), soil intake (0–1), drainage capacity (0–1),
+  terrain relief (0–1).
+- Presets: Urban Downpour (45 / 0.6 / 0.8 / 0.35), Monsoon Deluge (85 / 0.35 / 0.4 / 0.55),
+  Cloudburst Catastrophe (120 / 0.15 / 0.15 / 0.7).
+- Environment: canal between two levees, overflow sheet across the town as the level tops the
+  north levee, rain curtain + low cloud deck, runoff cascades off terraced hills (scale with the
+  relief slider), storm-drain grates, depth markers, floating debris, river gauge staff.
+- Audio layers: rumble (brown low-pass 90 Hz), rain (white high-pass 3.8 kHz),
+  runoff (white band-pass 600 Hz), surge (brown low-pass 180 Hz); hiss ticks track rainfall.
+- HUD: rainfall (sim), runoff %, gauge distance, flood stage; **flood gauge** meter (depth in m,
+  normal / rising / flooding). Safety: never drive through flooded roads; most deaths are in vehicles.
+
+### 3.10 Landslide Simulator
+- Category: Geology. Difficulty: Moderate. Spawn: 160/130/100 m from the slide scar.
+- Illustrative model (`slopeStability`): slope angle sets the driving stress, soil saturation +
+  rainfall raise pore-water pressure (lowering friction), vegetation root cohesion resists; returns a
+  0..1 stability index (unit-tested, bounded, monotonic in each input).
+- Parameters: slope angle (5–60° sim), soil saturation (0–1), rainfall rate (0–120 mm/h sim),
+  vegetation cover (0–1).
+- Presets: Rooted Slope (18 / 0.3 / 20 / 0.9), Saturated Watch (38 / 0.7 / 70 / 0.4),
+  Slope Failure (55 / 0.95 / 110 / 0.1).
+- Environment: terraced hillside rising north, dark scarp face, crest cracks that open with
+  instability, debris tongue creeping downhill (worst when saturated), boulders that start rolling
+  when the slope gives, vegetation tinted by the cover slider, rain curtain, scarp dust puffs,
+  survey staff at the scar (minimap event anchor).
+- Audio layers: rumble (brown low-pass 70 Hz), crack (white band-pass 1.5 kHz, Q 6),
+  debris (white band-pass 700 Hz), rain (white high-pass 4.2 kHz); pop ticks track crack density.
+- HUD: stability index, saturation, slope, scarp distance; **slope stability** meter
+  (stable / watch / failure likely). Safety: in real terrain watch for fresh cracks, leaning trees
+  and sudden springs after heavy rain, and evacuate early.
+
+### 3.11 Drought Simulator
+- Category: Water & climate. Difficulty: Moderate. Spawn: 150/120/100 m from the reservoir.
+- Illustrative model (`reservoirLevel`): rainfall in vs evaporation + demand out, buffered by
+  reservoir capacity; returns stored fraction 0..1 (unit-tested, bounded, monotonic in each input).
+- Parameters: monthly rainfall (0–150 mm/mo sim), evaporation (0–1), crop & city demand (0–1),
+  reservoir capacity (0.2–1).
+- Presets: Wet Season (120 / 0.3 / 0.4 / 0.8), Dry Spell (45 / 0.55 / 0.7 / 0.6),
+  Mega-Drought (5 / 0.9 / 0.95 / 0.35).
+- Environment: reservoir basin with clay rim, water disc that shrinks and drops with the modeled
+  level, historic shoreline bands, radial mud cracks + pits revealed on the drying bed, crop field
+  fading green → straw, dust streaming leeward with evaporation strength, rim houses (colliders),
+  monitoring pole at the rim (minimap event anchor).
+- Audio layers: rumble (brown low-pass 80 Hz), wind (white band-pass 550 Hz),
+  dust (white high-pass 5.2 kHz); pop ticks model cracking mud; hollow tone descends as the level falls.
+- HUD: reservoir %, rainfall, evaporation, shoreline distance; **reservoir level** meter
+  (comfortable / dropping / critical). Safety: real droughts bring rationing, crop losses, heat waves
+  and wildfire risk — conserve water before a crisis is declared.
+
+### 3.12 NPCs, guides & provenance in sims
+- Every sim has named NPC bystanders that wander, flee the hazard, stop and face you while chatting,
+  and answer grounded questions (guide topics cover all 10 sims: tornado, hurricane, earthquake,
+  volcano, ocean, tsunami, wildfire, flood, landslide, drought).
+- All simulated values are labeled "(sim)"; all sounds are synthesized; disclaimers state the sims are
+  learning toys, not forecasts or survival training.
+
+---
+
+## 4. Commands
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Dev server at http://localhost:5173 |
+| `npm run build` | Typecheck (`tsc --noEmit`) + production build to `dist/` |
+| `npm run preview` | Serve the production build (port 4173) |
+| `npm test` | Run the 95 unit tests once (`vitest run`) |

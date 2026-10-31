@@ -1,0 +1,17 @@
+{
+  "name": "TerraTone — Hear the Pulse of Our Planet",
+  "short_name": "TerraTone",
+  "description": "Transform NASA Earth science data into meaningful sound. Explore climate change through sight and hearing — online and offline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050b1a",
+  "theme_color": "#050b1a",
+  "categories": ["education", "science", "music"],
+  "icons": [
+    { "src": "/icons/logo.png", "sizes": "any", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
