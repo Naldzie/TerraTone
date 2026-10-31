@@ -4,4 +4,9 @@
     <string name="title_activity_main">TerraTone</string>
     <string name="package_name">com.terratone.app</string>
     <string name="custom_url_scheme">com.terratone.app</string>
+    <!-- Back-button exit confirmation -->
+    <string name="quit_title">Quit TerraTone?</string>
+    <string name="quit_message">Do you want to close the app?</string>
+    <string name="quit_stay">Stay</string>
+    <string name="quit_confirm">Quit</string>
 </resources>
