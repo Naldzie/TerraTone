@@ -50,6 +50,7 @@ export async function fetchApod(): Promise<{ apod: Apod; usedDemoKey: boolean }>
     if (res.status === 403 || res.status === 429) {
       throw new Error('NASA rate limit reached (likely on DEMO_KEY). Add your personal NASA key in Settings → API keys.');
     }
+    if (res.status >= 500) throw new Error(`NASA's picture-of-the-day service is having problems right now (HTTP ${res.status}). It isn't your key — try again later.`);
     if (!res.ok) throw new Error(`APOD responded ${res.status}. Check your key in Settings → API keys.`);
     const apod = parseApod(await res.json());
     try {

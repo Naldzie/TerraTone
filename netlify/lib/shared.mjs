@@ -18,6 +18,17 @@ export function allowedOrigin(req) {
   return origin === new URL(req.url).origin || APP_ORIGINS.has(origin);
 }
 
+/**
+ * The owner's API key from the Netlify environment. Accepts the plain name
+ * (GEMINI_API_KEY) or the local .env name (VITE_GEMINI_API_KEY), and cleans up
+ * what a paste often drags along: surrounding quotes or spaces, or a whole
+ * "NAME=value" line.
+ */
+export function ownerKey(name) {
+  const raw = process.env[name] || process.env[`VITE_${name}`] || '';
+  return raw.trim().replace(/^[A-Z_]+=/, '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+}
+
 export function json(status, body) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }

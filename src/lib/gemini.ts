@@ -118,6 +118,14 @@ function geminiUrl(path: string, key: string): string {
     : `${apiProxy()}/gemini/${path}`;
 }
 
+/** A rejected key on the site's shared proxy is the site owner's to fix, not the visitor's. */
+function siteKeyError(e: unknown, key: string): unknown {
+  if (!key && e instanceof AiHttpError && (e.status === 400 || e.status === 403)) {
+    return new AiHttpError(e.status, `This website's shared Gemini key was rejected (HTTP ${e.status}). You can add your own free key in Settings → API keys meanwhile.`);
+  }
+  return e;
+}
+
 async function listModels(key: string): Promise<string[]> {
   const list = (await fetchJson(geminiUrl('models', key))) as { models?: ModelEntry[] };
   const ranked = rankModels(list.models ?? []);
@@ -134,7 +142,13 @@ export async function explainWithGemini(brief: DatasetBrief): Promise<string> {
 export async function generateText(prompt: string, maxTokens = 400, temperature = 0.5): Promise<string> {
   const key = getGeminiKey();
   if (!key && !apiProxy()) throw new Error('No Gemini key saved. Add one in Settings → API keys first.');
-  if (!cachedModels) cachedModels = await listModels(key);
+  if (!cachedModels) {
+    try {
+      cachedModels = await listModels(key);
+    } catch (e) {
+      throw siteKeyError(e, key);
+    }
+  }
   const tried: string[] = [];
   let busy = false;
   // Walk the ranked list: a 404 means that model ID retired, a 503 that it is
@@ -155,7 +169,7 @@ export async function generateText(prompt: string, maxTokens = 400, temperature 
     } catch (e) {
       if (e instanceof AiHttpError && e.status === 404) continue;
       if (e instanceof AiHttpError && e.status === 503) { busy = true; continue; }
-      throw e;
+      throw siteKeyError(e, key);
     }
   }
   if (busy) throw new Error('The AI models are busy right now (high demand). Please try again in a moment.');

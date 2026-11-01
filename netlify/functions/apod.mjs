@@ -4,12 +4,12 @@
  *
  *   GET /api/apod
  */
-import { allowedOrigin, json } from '../lib/shared.mjs';
+import { allowedOrigin, json, ownerKey } from '../lib/shared.mjs';
 
 export default async (req) => {
   if (!allowedOrigin(req)) return json(403, { error: 'Not allowed from this origin.' });
   if (req.method !== 'GET') return json(405, { error: 'GET only.' });
-  const key = process.env.NASA_API_KEY || 'DEMO_KEY';
+  const key = ownerKey('NASA_API_KEY') || 'DEMO_KEY';
   const res = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${encodeURIComponent(key)}`, {
     headers: { Accept: 'application/json' },
   });

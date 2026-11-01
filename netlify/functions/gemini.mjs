@@ -9,7 +9,7 @@
  * app), and replies are capped, so the endpoint can't be used as an open
  * Gemini relay.
  */
-import { allowedOrigin, json } from '../lib/shared.mjs';
+import { allowedOrigin, json, ownerKey } from '../lib/shared.mjs';
 
 const UPSTREAM = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_BODY = 16 * 1024;
@@ -17,7 +17,7 @@ const MAX_TOKENS = 800;
 
 export default async (req) => {
   if (!allowedOrigin(req)) return json(403, { error: 'Not allowed from this origin.' });
-  const key = process.env.GEMINI_API_KEY;
+  const key = ownerKey('GEMINI_API_KEY');
   if (!key) return json(503, { error: 'The site has no Gemini key configured.' });
 
   const path = new URL(req.url).pathname.replace(/^\/api\/gemini\/?/, '');
