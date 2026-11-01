@@ -2733,6 +2733,8 @@ html[data-lite] .landing__page, html[data-lite] .landing__hero { transform: none
 }
 .simright > * { pointer-events: auto; }
 .simright > .simbtns { max-width: 100%; }
+/* No panning / pinch from the dock, so extra fingers never cancel the joystick. */
+.simright .btn { touch-action: none; }
 @media (hover: hover) and (pointer: fine) {
   .jumppad { display: none; }
 }
@@ -2745,4 +2747,31 @@ html[data-lite] .landing__page, html[data-lite] .landing__hero { transform: none
 }
 @media (max-width: 1023px) and (max-height: 520px) and (orientation: landscape) {
   .jumppad { --jp: 72px; }
+}
+
+/* =====================================================================
+   NPC chat on phones — a smaller answer bubble and question box so the
+   scene and the controls stay visible while talking.
+   ===================================================================== */
+@media (max-width: 640px), (max-height: 520px) and (orientation: landscape) {
+  .npcbubble {
+    max-width: min(280px, calc(100% - 16px));
+    padding: 7px 8px; gap: 5px; border-radius: 11px;
+    font-size: 0.74rem;
+  }
+  .npcbubble .row b, .npcbubble .row strong { font-size: 0.78rem; }
+  .npcbubble .btn.sm { min-height: 28px; padding: 2px 7px; font-size: 0.72rem; }
+  .npcbubble .captions { max-height: 92px; padding: 5px 7px; font-size: 0.74rem; line-height: 1.35; }
+  .npcbubble .alert { padding: 6px 8px; font-size: 0.7rem; }
+
+  .npcchoices {
+    width: min(340px, calc(100% - 16px)); bottom: 6px;
+    padding: 5px 6px; gap: 4px; border-radius: 11px;
+  }
+  .npcchoice-list { gap: 3px; }
+  .npcchoice { min-height: 32px; padding: 3px 7px; gap: 7px; font-size: 0.72rem; border-radius: 8px; }
+  .npcchoice-num { width: 19px; height: 19px; font-size: 0.68rem; border-radius: 5px; }
+  .npcchoices .row { margin-top: 3px; gap: 5px; }
+  .npcchoices input { min-height: 32px; padding: 4px 8px; font-size: 0.76rem; }
+  .npcchoices .btn.sm { min-height: 32px; padding: 3px 9px; font-size: 0.74rem; }
 }

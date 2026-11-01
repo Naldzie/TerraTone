@@ -307,7 +307,7 @@ export function Tornado() {
             <ul style={{ fontSize: '.85rem', color: 'var(--ink-dim)' }}>
               <li>Closer → louder overall (smooth curve, never linear jumps), deeper rumble, brighter whistle.</li>
               <li>Cross the <b>yellow ring (~60 m)</b> and the funnel picks you up — push outward to break free, or ride it out and get flung clear.</li>
-              <li><Icon name="helicopter" /> <Icon name="car" /> A big helicopter and car wait near your spawn — walk up and press <b>E</b> (or Ride) to take it; hold Run to climb the copter. Fly or drive into the yellow ring and the funnel grabs the vehicle too. Bystanders steal parked vehicles for joyrides — and the funnel grabs those too.</li>
+              <li><Icon name="helicopter" /> <Icon name="car" /> A big helicopter and car wait near your spawn — walk up and press <b>E</b> (or Ride) to take it; hold Jump (Space) to climb the copter. Fly or drive into the yellow ring and the funnel grabs the vehicle too. Bystanders steal parked vehicles for joyrides — and the funnel grabs those too.</li>
               <li>The funnel roams the map, flattening trees and scattering bystanders in its path (both recover).</li>
               <li>Farther → quiet distant rumble; fine detail fades first, like a real storm on the horizon.</li>
               <li>Left/right placement follows the funnel's direction around you (graceful stereo fallback on basic speakers).</li>

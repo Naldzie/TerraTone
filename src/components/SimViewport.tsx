@@ -14,6 +14,7 @@ import { useFullscreenLandscape } from '../lib/fullscreen';
 import { captureMouse, useMouseLook } from '../lib/mouseLook';
 import { SimHelp, SimPrompt, Key } from './SimChrome';
 import { JumpPad } from './JumpPad';
+import { multiTouchTap } from '../lib/multiTouch';
 
 interface Props {
   env: Omit<EnvOptions, 'quality' | 'reduceMotion' | 'onTick'>;
@@ -316,7 +317,7 @@ export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paus
         >
           <div className="joyknob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
         </div>
-        <div className="simright">
+        <div className="simright" {...multiTouchTap}>
           <JumpPad
             label={vehicle && riding ? 'Rise' : 'Jump'}
             onPress={() => { if (vehicle && riding) simRef.current?.setClimb(true); else simRef.current?.queueJump(); }}

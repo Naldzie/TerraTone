@@ -197,6 +197,8 @@ export class TornadoSim {
   private camYaw = Math.PI; private camPitch = 0.32;
   private input: SimInput = { x: 0, z: 0, run: false };
   private jumpQueued = false;
+  /** Jump held while flying the copter: climb. */
+  private climb = false;
   private lightningT = 6;
   private intensity = 0.5;
   private windKmh = 130;
@@ -555,6 +557,7 @@ export class TornadoSim {
 
   setInput(i: SimInput): void { this.input = i; }
   queueJump(): void { this.jumpQueued = true; }
+  setClimb(on: boolean): void { this.climb = on; }
   addCameraOrbit(dx: number, dy: number): void {
     this.camYaw -= dx * 0.005;
     // Negative pitch drops the camera and lifts the look point: drag up to
@@ -1115,13 +1118,13 @@ export class TornadoSim {
         this.heli.x = fixed.x; this.heli.z = fixed.z;
         this.heli.yaw = turnTo(this.heli.yaw, wish.x / len, wish.z / len, 6, dt);
       }
-      // Hold Run/Shift to climb. Cruising, it hovers a few metres above
+      // Hold Jump/Space to climb. Cruising, it hovers a few metres above
       // whatever is below; let go of the stick and it settles down to land —
       // on the ground or on a rooftop helipad.
       const below = this.roofAt(this.heli.x, this.heli.z);
-      const targetY = this.input.run ? Math.max(34, below + 12) : moving ? Math.max(9, below + 6) : below;
-      this.heli.y += (targetY - this.heli.y) * Math.min(1, dt * (moving || this.input.run ? 1.5 : 1.1));
-      if (!moving && !this.input.run && Math.abs(this.heli.y - below) < 0.15) this.heli.y = below;
+      const targetY = this.climb ? Math.max(34, below + 12) : moving ? Math.max(9, below + 6) : below;
+      this.heli.y += (targetY - this.heli.y) * Math.min(1, dt * (moving || this.climb ? 1.5 : 1.1));
+      if (!moving && !this.climb && Math.abs(this.heli.y - below) < 0.15) this.heli.y = below;
       this.heliCollider.x = this.heli.x;
       this.heliCollider.z = this.heli.z;
       this.heli.group.position.set(this.heli.x, this.heli.y + HELI_GROUND_Y, this.heli.z);

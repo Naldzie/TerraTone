@@ -15,6 +15,7 @@ import { useFullscreenLandscape } from '../lib/fullscreen';
 import { captureMouse, useMouseLook } from '../lib/mouseLook';
 import { SimHelp, SimPrompt, Key } from './SimChrome';
 import { JumpPad } from './JumpPad';
+import { multiTouchTap } from '../lib/multiTouch';
 
 interface Props {
   storm: StormParams;
@@ -174,14 +175,18 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
       if (e.key === ' ') {
         e.preventDefault();
+        simRef.current?.setClimb(true);
         if (!e.repeat) simRef.current?.queueJump();
         return;
       }
       keys.current.add(e.key.toLowerCase());
       pushCombinedInput();
     };
-    const up = (e: KeyboardEvent) => { keys.current.delete(e.key.toLowerCase()); pushCombinedInput(); };
-    const blur = () => { keys.current.clear(); pushCombinedInput(); };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === ' ') simRef.current?.setClimb(false);
+      keys.current.delete(e.key.toLowerCase()); pushCombinedInput();
+    };
+    const blur = () => { keys.current.clear(); simRef.current?.setClimb(false); pushCombinedInput(); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);
@@ -361,8 +366,12 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
         >
           <div className="joyknob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
         </div>
-        <div className="simright">
-          <JumpPad onPress={() => simRef.current?.queueJump()} />
+        <div className="simright" {...multiTouchTap}>
+          <JumpPad
+            label={riding === 'heli' ? 'Rise' : 'Jump'}
+            onPress={() => { simRef.current?.setClimb(true); simRef.current?.queueJump(); }}
+            onRelease={() => simRef.current?.setClimb(false)}
+          />
           <div className="simbtns">
             <button
               className="btn sm ghost"
@@ -385,7 +394,12 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
               aria-pressed={runMode}
               onClick={() => setRunMode((v) => !v)}
             >{runMode ? <><Icon name="run" /> Run</> : <><Icon name="walk" /> Walk</>}<Key k="Shift" /></button>
-            <button className="btn sm simjump-btn" onClick={() => simRef.current?.queueJump()} aria-label="Jump"><Icon name="arrow-up" /> Jump<Key k="Space" /></button>
+            <button className="btn sm simjump-btn" onClick={() => simRef.current?.queueJump()} aria-label="Jump"
+              onPointerDown={() => simRef.current?.setClimb(true)}
+              onPointerUp={() => simRef.current?.setClimb(false)}
+              onPointerLeave={() => simRef.current?.setClimb(false)}
+              onPointerCancel={() => simRef.current?.setClimb(false)}
+            ><Icon name="arrow-up" /> Jump<Key k="Space" /></button>
             <button
               className="btn sm"
               onClick={() => simRef.current?.tryToggleMount()}
@@ -412,12 +426,12 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
       <SimSettingsOverlay open={settingsOpen} onClose={() => setSettingsOpen(false)}>
         {settings}
       </SimSettingsOverlay>
-      {helpOpen && <SimHelp vehicle={{ label: 'copter / car', hint: 'A copter and a car are parked by the spawn — press E beside one to ride; hold Run to climb the copter, let go of the stick to land — tower rooftops have helipads.' }} onClose={() => setHelpOpen(false)} />}
+      {helpOpen && <SimHelp vehicle={{ label: 'copter / car', hint: 'A copter and a car are parked by the spawn — press E beside one to ride; hold Jump to climb the copter, let go of the stick to land — tower rooftops have helipads.' }} onClose={() => setHelpOpen(false)} />}
     </div>
     <p className="simhint">
       <span className="simhint--desktop"><b>Mouse:</b> after Play (or one click on the scene) the cursor hides and the mouse looks around freely — Esc gives it back. <b>Keys:</b> WASD / arrows, Q settings, Shift run, Space jump, E ride, T talk, F fullscreen, H help.</span>
       <span className="simhint--touch"><b>Touch:</b> left joystick to move, drag the scene to look, buttons on the right to jump, ride, talk and more. Fullscreen fills the phone.</span>
-      {' '}<Icon name="helicopter" /> <Icon name="car" /> parked by spawn — hold Run to climb the copter, let go of the stick to land — tower rooftops have helipads.
+      {' '}<Icon name="helicopter" /> <Icon name="car" /> parked by spawn — hold Jump to climb the copter, let go of the stick to land — tower rooftops have helipads.
     </p>
     </>
   );
