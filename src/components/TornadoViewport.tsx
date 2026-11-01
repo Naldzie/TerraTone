@@ -14,6 +14,7 @@ import type { IconName } from './Icon';
 import { useFullscreenLandscape } from '../lib/fullscreen';
 import { captureMouse, useMouseLook } from '../lib/mouseLook';
 import { SimHelp, SimPrompt, Key } from './SimChrome';
+import { JumpPad } from './JumpPad';
 
 interface Props {
   storm: StormParams;
@@ -360,6 +361,7 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
         >
           <div className="joyknob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
         </div>
+        <JumpPad onPress={() => simRef.current?.queueJump()} />
         <div className="simbtns">
           <button
             className="btn sm ghost"
@@ -382,7 +384,7 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
             aria-pressed={runMode}
             onClick={() => setRunMode((v) => !v)}
           >{runMode ? <><Icon name="run" /> Run</> : <><Icon name="walk" /> Walk</>}<Key k="Shift" /></button>
-          <button className="btn sm" onClick={() => simRef.current?.queueJump()} aria-label="Jump"><Icon name="arrow-up" /> Jump<Key k="Space" /></button>
+          <button className="btn sm simjump-btn" onClick={() => simRef.current?.queueJump()} aria-label="Jump"><Icon name="arrow-up" /> Jump<Key k="Space" /></button>
           <button
             className="btn sm"
             onClick={() => simRef.current?.tryToggleMount()}
