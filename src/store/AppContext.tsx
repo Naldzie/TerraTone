@@ -17,7 +17,7 @@ import {
 
 export type ConnectionState = 'online' | 'offline' | 'cached';
 export type TabId = 'explore' | 'listen' | 'storm' | 'sims' | 'library' | 'studio' |
-'access' | 'settings' | 'online';
+'access' | 'settings' | 'online' | 'events';
 
 interface AppState {
   tab: TabId;

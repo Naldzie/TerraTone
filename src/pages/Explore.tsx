@@ -134,8 +134,11 @@ export function Explore() {
       </div>
 
       <div className="alert row" style={{ marginTop: 12, justifyContent: 'space-between' }}>
-        <span><Icon name="satellite" /> Live events and Earth photos</span>
-        <button className="btn sm primary" onClick={() => setTab('online')}><Icon name="broadcast" /> Open Live tab</button>
+        <span><Icon name="satellite" /> Live weather and natural events</span>
+        <span className="row" style={{ gap: 8 }}>
+          <button className="btn sm primary" onClick={() => setTab('online')}><Icon name="broadcast" /> Live</button>
+          <button className="btn sm" onClick={() => setTab('events')}><Icon name="flame" /> Events</button>
+        </span>
       </div>
 
       <div className="section-title"><h2>Recently played</h2><span>on this device</span></div>

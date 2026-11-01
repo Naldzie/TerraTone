@@ -75,10 +75,9 @@ export function EonetPanel({ onLaunchSim }: { onLaunchSim: (id: HazardId) => voi
 
   return (
     <div className="card">
-      <h3 style={{ margin: 0 }}><Icon name="flame" /> Natural events now{' '}
-        <HelpTip label="natural events">
-          Wildfires, storms, volcanoes and more that NASA is tracking right now. The simulators they open are practice
-          worlds, not forecasts.
+      <h3 style={{ margin: 0 }}><Icon name="flame" /> On the map{' '}
+        <HelpTip label="the event map">
+          Real events from NASA EONET. The simulators they open are practice worlds, not forecasts.
         </HelpTip>
       </h3>
       {fetchedAt && (

@@ -103,7 +103,8 @@ describe('Live tab — NASA POWER latest-conditions console', () => {
     expect(screen.getByLabelText('Variable')).toBeInTheDocument();
     expect(screen.getByLabelText('Window')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /fetch latest data/i })).toBeInTheDocument();
-    expect(screen.getByTestId('eonet')).toBeInTheDocument();
+    // Natural events moved to their own Events tab.
+    expect(screen.queryByTestId('eonet')).not.toBeInTheDocument();
     expect(screen.getByTestId('epic')).toBeInTheDocument();
     expect(screen.getByTestId('apod')).toBeInTheDocument();
     expect(screen.queryByTestId('player')).not.toBeInTheDocument();

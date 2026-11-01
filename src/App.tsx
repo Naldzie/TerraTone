@@ -28,11 +28,13 @@ import type { AppSettings } from './types';
 const Tornado = lazy(() => import('./pages/Tornado').then((m) => ({ default: m.Tornado })));
 const Sims = lazy(() => import('./pages/Sims').then((m) => ({ default: m.Sims })));
 const Online = lazy(() => import('./pages/Online').then((m) => ({ default: m.Online })));
+const Events = lazy(() => import('./pages/Events').then((m) => ({ default: m.Events })));
 
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'explore', label: 'Explore', icon: 'globe' },
   { id: 'listen', label: 'Listen', icon: 'headphones' },
   { id: 'online', label: 'Live', icon: 'broadcast' },
+  { id: 'events', label: 'Events', icon: 'flame' },
   { id: 'sims', label: 'Sims', icon: 'gamepad' },
   { id: 'library', label: 'Library', icon: 'database' },
   { id: 'access', label: 'Access', icon: 'accessibility' },
@@ -40,7 +42,7 @@ const TABS: { id: TabId; label: string; icon: IconName }[] = [
 ];
 
 const NAV_GROUPS: { label: string; tabs: TabId[] }[] = [
-  { label: 'Main', tabs: ['explore', 'listen', 'online', 'sims'] },
+  { label: 'Main', tabs: ['explore', 'listen', 'online', 'events', 'sims'] },
   { label: 'Your Music', tabs: ['library'] },
   { label: 'System', tabs: ['access', 'settings'] },
 ];
@@ -216,6 +218,11 @@ function Chrome() {
           {tab === 'online' && (
             <Suspense fallback={<div className="empty" role="status">Loading live feeds…</div>}>
               <Online />
+            </Suspense>
+          )}
+          {tab === 'events' && (
+            <Suspense fallback={<div className="empty" role="status">Loading natural events…</div>}>
+              <Events />
             </Suspense>
           )}
           {tab === 'library' && <Library />}

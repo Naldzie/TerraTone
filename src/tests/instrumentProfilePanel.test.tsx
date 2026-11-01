@@ -39,7 +39,7 @@ describe('InstrumentProfilePanel', () => {
     expect(screen.getByText(/on Piano/)).toBeInTheDocument();
   });
 
-  it('offers five named profiles, with details tucked into each card’s tooltip', () => {
+  it('offers five named, described profiles with effect tags on hover', () => {
     render(<InstrumentProfilePanel />);
     const group = screen.getByRole('radiogroup');
     const cards = within(group).getAllByRole('radio');
@@ -51,7 +51,8 @@ describe('InstrumentProfilePanel', () => {
       expect.stringContaining('Bright Piano'),
       expect.stringContaining('Warm Piano'),
     ]);
-    // Cards show just the name; description + effect tags live in the hover title.
+    // Each card shows its name and description; the effect tags are its hover title.
+    expect(cards.every((c) => (c.querySelector('.sound-profile-card__desc')?.textContent ?? '').length > 0)).toBe(true);
     expect(group.textContent).not.toContain('Additive');
     expect(cards[0].getAttribute('title')).toContain('Additive');
     expect(cards[0].getAttribute('title')).toContain('Reverb');

@@ -117,13 +117,14 @@ export function InstrumentProfilePanel({
               role="radio"
               aria-checked={selected}
               className="sound-profile-card"
-              title={`${p.description} (${effectTags(p.spec).join(', ')})`}
+              title={effectTags(p.spec).join(' · ')}
               onClick={() => chooseProfile(p.id)}
             >
               <span className="sound-profile-card__head">
                 {p.name}
                 {selected && <Icon name="check" />}
               </span>
+              <span className="sound-profile-card__desc">{p.description}</span>
             </button>
           );
         })}

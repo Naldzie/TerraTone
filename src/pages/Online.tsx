@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApodPanel } from '../components/ApodPanel';
-import { EonetPanel } from '../components/EonetPanel';
 import { EpicPanel } from '../components/EpicPanel';
 import { Icon } from '../components/Icon';
 import { HelpTip } from '../components/HelpTip';
@@ -40,7 +39,7 @@ type LiveRequest = { key: PowerLiveKey; series: 'hourly' | 'daily'; window: numb
 
 /** Online hub — live NASA feeds plus a Listen-style console for the newest POWER readings. */
 export function Online() {
-  const { connection, requestSim, addSessionDataset, selectDataset } = useApp();
+  const { connection, addSessionDataset, selectDataset } = useApp();
   const offline = connection === 'offline';
 
   const [place, setPlace] = useState(0);
@@ -174,8 +173,8 @@ export function Online() {
       <div className="hero">
         <h1>Live from <span className="accent">NASA</span>{' '}
           <HelpTip label="the Live tab">
-            Real NASA data from today: weather for any place, natural events on a map, and Earth and space photos.
-            Tap an event to open its simulator.
+            Real NASA data from today: weather for any place, plus Earth and space photos.
+            Natural events have their own Events tab.
           </HelpTip>
         </h1>
         {offline && <p>You are offline. Showing saved copies.</p>}
@@ -308,9 +307,6 @@ export function Online() {
           <Listen />
         </>
       )}
-
-      <div className="section-title"><h2>Natural events now</h2><span>EONET · keyless</span></div>
-      <EonetPanel onLaunchSim={requestSim} />
 
       <div className="section-title"><h2>Earth from space</h2><span>EPIC · keyless</span></div>
       <EpicPanel />
