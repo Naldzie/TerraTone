@@ -19,13 +19,18 @@ export function allowedOrigin(req) {
 }
 
 /**
- * The owner's API key from the Netlify environment. Accepts the plain name
- * (GEMINI_API_KEY) or the local .env name (VITE_GEMINI_API_KEY), and cleans up
- * what a paste often drags along: surrounding quotes or spaces, or a whole
+ * The owner's API key from the Netlify environment, under the local .env name
+ * (VITE_GEMINI_API_KEY) or the plain one (GEMINI_API_KEY), cleaning up what a
+ * paste often drags along: surrounding quotes or spaces, or a whole
  * "NAME=value" line.
+ *
+ * The .env name wins: Netlify's AI Gateway injects its own GEMINI_API_KEY into
+ * every function (a gateway token, announced by GOOGLE_GEMINI_BASE_URL) that
+ * Google rejects as "API key not valid", so that one is ignored.
  */
 export function ownerKey(name) {
-  const raw = process.env[name] || process.env[`VITE_${name}`] || '';
+  const gatewayToken = name === 'GEMINI_API_KEY' && Boolean(process.env.GOOGLE_GEMINI_BASE_URL);
+  const raw = process.env[`VITE_${name}`] || (gatewayToken ? '' : process.env[name]) || '';
   return raw.trim().replace(/^[A-Z_]+=/, '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
 }
 
