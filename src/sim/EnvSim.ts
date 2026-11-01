@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import type { IconName } from '../components/Icon';
 import { WORLD } from './stormTypes';
 import { Npc, NPC_COUNT, NPC_NAMES, npcTierFor } from './npc';
+import { Traffic } from './traffic';
 import { AvatarAnimator, buildAvatarMesh, disposeAvatarBody, DEFAULT_AVATAR, randomAvatarOptions } from './avatar';
 import type { AvatarOptions } from './avatar';
 
@@ -235,6 +236,8 @@ export class EnvSim {
   private vel = new THREE.Vector3();
   private lastSpawn = 160;
   private feature: FeatureHandle;
+  /** NPC-driven cars + helicopter (land), a sub (ocean) or a ship (space). */
+  private traffic: Traffic;
   private colliders: Collider[] = [];
   /** Colliders that physically block the explorer (not mounds / NPC-only). */
   private walls: Collider[] = [];
@@ -347,6 +350,8 @@ export class EnvSim {
     }
     this.npcTier = npcTierFor(q);
     this.spawnNpcs();
+    this.traffic = new Traffic(this.scene);
+    this.spawnTraffic(opts);
     this.resize();
     this.last = performance.now();
     const loop = (now: number) => {
@@ -410,6 +415,25 @@ export class EnvSim {
 
   private applyNpcVisibility(): void {
     this.npcs.forEach((n, i) => { n.group.visible = this.npcsOn && i < this.npcTier; });
+    this.traffic?.setVisible(this.npcsOn);
+  }
+
+  /** NPC drivers for this world: ships in space, a sub underwater, cars + a copter on land. */
+  private spawnTraffic(opts: EnvOptions): void {
+    const def = opts.vehicle;
+    const noop = () => {};
+    if (def?.flight) {
+      const ship = def.build(this.scene, noop, { x: -70, y: 45, z: 40, tint: 0x34d399 });
+      this.traffic.addPiloted('ship', ship, { x: -70, y: 45, z: 40 });
+    } else if (this.swim && def) {
+      const sub = def.build(this.scene, noop);
+      this.traffic.addPiloted('sub', sub, { x: -60, y: 6, z: 90 });
+    } else if (!this.zeroG && !this.swim) {
+      this.traffic.addCar(0x2f6fd1, -90, 140);
+      this.traffic.addCar(0xe0b324, 110, -60);
+      this.traffic.addHeli(0xe8641f, 60, 160);
+    }
+    this.traffic.setVisible(this.npcsOn);
   }
 
   setNpcs(on: boolean): void {
@@ -458,6 +482,7 @@ export class EnvSim {
       const state = npc.isFleeing ? 'fleeing' : 'wandering';
       out.push({ x: npc.group.position.x, z: npc.group.position.z, name: npc.name, state });
     }
+    for (const v of this.traffic.positions()) out.push({ x: v.x, z: v.z, name: `${v.kind === 'heli' ? 'Pilot' : v.kind === 'car' ? 'Driver' : 'Captain'}`, state: 'driving' });
     return out;
   }
 
@@ -572,6 +597,7 @@ export class EnvSim {
     this.prevX = this.pos.x; this.prevZ = this.pos.z;
     this.groundSpeed = 0;
     this.feature.reset?.();
+    this.traffic.reset();
     for (const f of this.fleet) {
       Object.assign(f.veh, { x: f.vehicle.home.x, z: f.vehicle.home.z, y: f.vehicle.home.y ?? 2.5, yaw: 0, bank: 0, pitch: 0 });
       f.vehicle.group.position.set(f.veh.x, f.veh.y, f.veh.z);
@@ -810,6 +836,13 @@ export class EnvSim {
       }
       npc.update(dt, this.elapsed, WORLD.halfSize, this.colliders, { x: this.hazardX, z: this.hazardZ }, { x: this.pos.x, z: this.pos.z }, this.npcs);
     }
+    this.traffic.update(dt, this.elapsed, {
+      half: WORLD.halfSize,
+      groundAt: (x, z) => (this.noGround ? 0 : this.groundAt(x, z)),
+      colliders: this.colliders,
+      hazard: { x: this.hazardX, z: this.hazardZ },
+      player: this.pos,
+    });
 
     // Camera pulls back and widens a touch at a sprint; a landing dips it.
     const sprint = moving && this.input.run && !this.mounted ? 1 : 0;

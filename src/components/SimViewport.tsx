@@ -47,6 +47,8 @@ interface Props {
   chatChoices?: ReactNode;
   /** Simulation settings shown in the in-scene, scrollable settings drawer. */
   settings?: ReactNode;
+  /** Optional sim-specific action in the control dock (e.g. trigger a quake), with a keyboard key. */
+  action?: { label: string; icon: IconName; key: string; onPress: () => void };
   /** Live analyser for the on-screen waveform + spectrum monitor. */
   getAnalyser?: () => AnalyserNode | null;
 }
@@ -57,7 +59,7 @@ interface Props {
  * camera, walk/run toggle, optional gyro, HUD chips. touch-action:none
  * throughout so controls never scroll the page.
  */
-export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paused, spawn, resetSignal, chips, onSnapshot, onPauseRequest, startOverlay, onStart, npcs = true, avatar, vehicle, onTalk, talkingNpc = null, chat, chatChoices, settings, getAnalyser }: Props) {
+export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paused, spawn, resetSignal, chips, onSnapshot, onPauseRequest, startOverlay, onStart, npcs = true, avatar, vehicle, onTalk, talkingNpc = null, chat, chatChoices, settings, action, getAnalyser }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const simRef = useRef<EnvSim | null>(null);
   const keys = useRef<Set<string>>(new Set());
@@ -89,6 +91,8 @@ export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paus
   pauseRef.current = onPauseRequest;
   const talkRef = useRef(onTalk);
   talkRef.current = onTalk;
+  const actionRef = useRef(action);
+  actionRef.current = action;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -165,6 +169,8 @@ export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paus
       if (e.key.toLowerCase() === 'f' && !e.repeat) { void fsRef.current(); return; }
       if (e.key.toLowerCase() === 'q' && !e.repeat) { setSettingsOpen((v) => !v); return; }
       if (e.key.toLowerCase() === 't') { talkRef.current?.(); return; }
+      const act = actionRef.current;
+      if (act && !e.repeat && e.key.toLowerCase() === act.key.toLowerCase()) { act.onPress(); return; }
       if (vehicle && e.key.toLowerCase() === 'e') { simRef.current?.tryToggleMount(); return; }
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
       if (e.key === ' ') {
@@ -349,6 +355,11 @@ export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paus
               onPointerLeave={() => simRef.current?.setClimb(false)}
               onPointerCancel={() => simRef.current?.setClimb(false)}
             ><Icon name="arrow-up" /> {riding ? 'Rise' : 'Jump'}<Key k="Space" /></button>
+            {action && (
+              <button className="btn sm simaction-btn" onClick={action.onPress} aria-label={action.label}>
+                <Icon name={action.icon} /> {action.label}<Key k={action.key.toUpperCase()} />
+              </button>
+            )}
             {vehicle && (
               <button className="btn sm" onClick={() => simRef.current?.tryToggleMount()}
                 disabled={!riding && !nearV}

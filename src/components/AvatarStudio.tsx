@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useApp } from '../store/AppContext';
 import {
-  ACCENTS, AVATAR_PRESETS, DEFAULT_AVATAR, HAIR_COLORS, SKINS, SUITS, VISOR_TINTS,
+  ACCENTS, AVATAR_PRESETS, BOOTS, DEFAULT_AVATAR, HAIR_COLORS, MATCH, SKINS, SUITS, VISOR_TINTS,
   AvatarAnimator, buildAvatarMesh, disposeAvatarBody, randomAvatarOptions,
 } from '../sim/avatar';
 import type {
@@ -16,7 +16,7 @@ import type { IconName } from './Icon';
 const BODY_LABELS: Record<BodyType, string> = { girl: 'Girl', boy: 'Boy' };
 const HEADGEAR_LABELS: Record<Headgear, string> = {
   helmet: 'Helmet', cap: 'Cap', beanie: 'Beanie', bucket: 'Bucket hat',
-  crown: 'Crown', headband: 'Headband', none: 'Bare',
+  crown: 'Crown', headband: 'Headband', tophat: 'Top hat', antennae: 'Antennae', none: 'Bare',
 };
 const FACE_LABELS: Record<FaceStyle, string> = {
   friendly: 'Friendly', brave: 'Brave', shades: 'Shades', goggles: 'Goggles', spectacles: 'Spectacles',
@@ -26,10 +26,10 @@ const HAIR_LABELS: Record<HairStyle, string> = {
   long: 'Long', buns: 'Space buns', braids: 'Braids',
 };
 const NECK_LABELS: Record<NeckWear, string> = {
-  none: 'None', scarf: 'Scarf', bandana: 'Bandana', bowtie: 'Bow tie',
+  none: 'None', scarf: 'Scarf', bandana: 'Bandana', bowtie: 'Bow tie', medal: 'Medal',
 };
 const BACK_LABELS: Record<BackWear, string> = {
-  pack: 'Backpack', cape: 'Cape', wings: 'Wings', none: 'None',
+  pack: 'Backpack', cape: 'Cape', wings: 'Wings', jetpack: 'Jetpack', none: 'None',
 };
 const EAR_LABELS: Record<EarWear, string> = { none: 'None', headphones: 'Headphones' };
 
@@ -110,13 +110,26 @@ export function AvatarPreview({ opts }: { opts: AvatarOptions }) {
   return <canvas ref={canvasRef} className="avatarPreview" role="img" aria-label="Spinning 3D preview of your explorer" />;
 }
 
-function Swatches({ label, colors, value, onPick, disabled }: {
+const hex = (v: number) => `#${v.toString(16).padStart(6, '0')}`;
+
+/** Preset color chips + a free color picker; optionally a "Match" chip (value MATCH). */
+function Swatches({ label, colors, value, onPick, disabled, matchLabel, fallback }: {
   label: string; colors: Swatch[]; value: number; onPick: (v: number) => void; disabled?: boolean;
+  /** Show a chip that sets MATCH (follow the suit / automatic). */
+  matchLabel?: string;
+  /** Color the picker starts from while the value is MATCH. */
+  fallback?: number;
 }) {
+  const custom = value !== MATCH && !colors.some((c) => c.value === value);
   return (
     <div className="field">
       <label>{label}</label>
       <div className="row" role="group" aria-label={label}>
+        {matchLabel && (
+          <button className="btn sm" aria-pressed={value === MATCH} disabled={disabled} onClick={() => onPick(MATCH)}>
+            {matchLabel}
+          </button>
+        )}
         {colors.map((c) => (
           <button
             key={c.value}
@@ -129,6 +142,16 @@ function Swatches({ label, colors, value, onPick, disabled }: {
             onClick={() => onPick(c.value)}
           />
         ))}
+        <label className="swatch swatch--picker" aria-pressed={custom} title="Pick any color"
+          style={custom ? { background: hex(value) } : undefined}>
+          <input
+            type="color"
+            aria-label={`${label}: pick any color`}
+            disabled={disabled}
+            value={hex(value === MATCH ? (fallback ?? 0xffffff) : value)}
+            onChange={(e) => onPick(parseInt(e.target.value.slice(1), 16))}
+          />
+        </label>
       </div>
     </div>
   );
@@ -197,7 +220,7 @@ export function AvatarStudio({ onClose }: StudioProps = {}) {
           </div>
           <ChoiceRow<BodyType> label="Character" options={['girl', 'boy'] as const} value={draft.body}
             onPick={(v) => set('body', v)} labels={BODY_LABELS} />
-          <ChoiceRow<Headgear> label="Headgear" options={['helmet', 'cap', 'beanie', 'bucket', 'crown', 'headband', 'none'] as const}
+          <ChoiceRow<Headgear> label="Headgear" options={['helmet', 'cap', 'beanie', 'bucket', 'crown', 'headband', 'tophat', 'antennae', 'none'] as const}
             value={draft.headgear} onPick={(v) => set('headgear', v)} labels={HEADGEAR_LABELS}
             icons={{ helmet: 'helmet', cap: 'cap', none: 'hair' }} />
           <ChoiceRow<VisorStyle> label="Visor (helmet)" options={['classic', 'wide', 'round'] as const} value={draft.visor}
@@ -212,13 +235,18 @@ export function AvatarStudio({ onClose }: StudioProps = {}) {
           <Swatches label="Skin tone" colors={SKINS} value={draft.skin} onPick={(v) => set('skin', v)} />
           <Swatches label="Suit" colors={SUITS} value={draft.suit} onPick={(v) => set('suit', v)} />
           <Swatches label="Accent" colors={ACCENTS} value={draft.accent} onPick={(v) => set('accent', v)} />
+          <Swatches label="Trousers" colors={SUITS} value={draft.pants} onPick={(v) => set('pants', v)}
+            matchLabel="Match suit" fallback={draft.suit} />
+          <Swatches label="Gloves" colors={ACCENTS} value={draft.gloves} onPick={(v) => set('gloves', v)}
+            matchLabel="Auto" fallback={draft.accent} />
+          <Swatches label="Boots" colors={BOOTS} value={draft.boots} onPick={(v) => set('boots', v)} />
           <ChoiceRow<BuildType> label="Build" options={['slim', 'standard', 'bulky'] as const} value={draft.build}
             onPick={(v) => set('build', v)} />
 
           <h4 className="panel-sub"><Icon name="sparkles" /> Wardrobe <small>everything else you can wear</small></h4>
-          <ChoiceRow<NeckWear> label="Neck" options={['none', 'scarf', 'bandana', 'bowtie'] as const}
+          <ChoiceRow<NeckWear> label="Neck" options={['none', 'scarf', 'bandana', 'bowtie', 'medal'] as const}
             value={draft.neck} onPick={(v) => set('neck', v)} labels={NECK_LABELS} />
-          <ChoiceRow<BackWear> label="Back" options={['pack', 'cape', 'wings', 'none'] as const}
+          <ChoiceRow<BackWear> label="Back" options={['pack', 'cape', 'wings', 'jetpack', 'none'] as const}
             value={draft.back} onPick={(v) => set('back', v)} labels={BACK_LABELS} />
           <ChoiceRow<EarWear> label="Ears" options={['none', 'headphones'] as const}
             value={draft.ears} onPick={(v) => set('ears', v)} labels={EAR_LABELS} />

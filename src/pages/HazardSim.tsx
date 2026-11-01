@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimViewport } from '../components/SimViewport';
 import { HazardAudioPanel } from '../components/HazardAudioPanel';
 import { Icon } from '../components/Icon';
+import { Key } from '../components/SimChrome';
 import { SeismicPanel } from '../components/SeismicPanel';
 import { AmbienceEngine } from '../audio/ambience';
 import { clampVals, hazardById } from '../sim/hazards';
@@ -206,6 +207,12 @@ export function HazardSim({ hazardId, onBack }: { hazardId: HazardId; onBack: ()
     setPaused(false);
   };
 
+  /** Start a tremor (button, dock button or the C key); starts the sim if needed. */
+  const triggerTremor = () => {
+    if (!hasStarted) play();
+    tremorUntil.current = Date.now() + vals.duration * 1000;
+  };
+
   const togglePause = () => {
     if (!hasStarted) play();
     else setPaused((v) => !v);
@@ -318,8 +325,8 @@ export function HazardSim({ hazardId, onBack }: { hazardId: HazardId; onBack: ()
               : <button className="btn" onClick={() => setPaused(true)}><Icon name="pause" /> Pause</button>}
           <button className="btn ghost" onClick={() => setResetSignal((n) => n + 1)}><Icon name="restart" /> Reset</button>
           {def.tremorButton && (
-            <button className="btn" onClick={() => { if (!hasStarted) play(); tremorUntil.current = Date.now() + vals.duration * 1000; }}>
-              <Icon name="vibrate" /> Trigger tremor ({vals.duration}s)
+            <button className="btn" onClick={triggerTremor}>
+              <Icon name="vibrate" /> Trigger tremor ({vals.duration}s) <Key k="C" />
             </button>
           )}
         </div>
@@ -339,6 +346,7 @@ export function HazardSim({ hazardId, onBack }: { hazardId: HazardId; onBack: ()
               ...(SPACE[hazardId]?.env ?? {}),
             }}
             vehicle={vehicleFor(hazardId)}
+            action={def.tremorButton ? { label: 'Quake', icon: 'vibrate', key: 'c', onPress: triggerTremor } : undefined}
             vals={valsWithTremor}
             shake={shakeAmt}
             quality={quality}

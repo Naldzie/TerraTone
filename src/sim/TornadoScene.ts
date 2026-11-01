@@ -365,6 +365,7 @@ export class TornadoSim {
     this.buildTornado();
     this.buildAvatar();
     this.buildVehicles();
+    this.seedDrivers();
     this.buildParticles(q);
     this.buildClouds();
     this.buildRain();
@@ -605,7 +606,26 @@ export class TornadoSim {
       v.group.rotation.set(0, v.yaw, 0);
       v.collider.x = v.x; v.collider.z = v.z;
     }
+    this.seedDrivers();
   }
+
+  /** Start with a couple of joyrides already under way (a car and a copter away
+   *  from the spawn), so the town feels alive; spawn-side vehicles stay free. */
+  private seedDrivers(): void {
+    const car = this.vehicles.filter((v) => v.kind === 'car')[1];
+    const heli = this.vehicles.filter((v) => v.kind === 'heli')[1];
+    let n = 0;
+    for (const v of [car, heli]) {
+      if (!v || v.driver) continue;
+      // Pick a visible bystander not already driving.
+      const i = this.npcs.findIndex((npc, k) => npc.group.visible && !this.isDriving(k) && k >= n);
+      if (i < 0) break;
+      n = i + 1;
+      this.npcs[i].group.visible = false;
+      v.driver = { npc: i, timer: 40 + Math.random() * 30, tx: v.x, tz: v.z, retarget: 0 };
+    }
+  }
+
   setQuality(qn: SimQuality): void {
     if (qn === this.quality) return;
     this.quality = qn;
@@ -640,7 +660,8 @@ export class TornadoSim {
   }
 
   private applyNpcVisibility(): void {
-    this.npcs.forEach((n, i) => { n.group.visible = this.npcsOn && i < this.npcTier; });
+    // Drivers stay hidden inside their vehicles.
+    this.npcs.forEach((n, i) => { n.group.visible = this.npcsOn && i < this.npcTier && !this.isDriving(i); });
   }
 
   setNpcs(on: boolean): void {

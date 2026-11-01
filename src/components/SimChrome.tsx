@@ -42,6 +42,7 @@ const ROWS: [string[], string][] = [
   [['Space'], 'Jump · in zero-g, thrust upward · aboard, hold to rise'],
   [['E'], 'Board or leave a vehicle'],
   [['T'], 'Talk to a nearby bystander'],
+  [['C'], 'Earthquake simulator: trigger a tremor'],
   [['Q'], 'Open / close the simulation settings'],
   [['F'], 'Fullscreen'],
   [['H', '?'], 'Show / hide this guide'],

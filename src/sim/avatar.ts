@@ -10,12 +10,12 @@ import * as THREE from 'three';
 import type { IconName } from '../components/Icon';
 
 export type BodyType = 'girl' | 'boy';
-export type Headgear = 'helmet' | 'cap' | 'beanie' | 'bucket' | 'crown' | 'headband' | 'none';
+export type Headgear = 'helmet' | 'cap' | 'beanie' | 'bucket' | 'crown' | 'headband' | 'tophat' | 'antennae' | 'none';
 export type VisorStyle = 'classic' | 'wide' | 'round';
 export type FaceStyle = 'friendly' | 'brave' | 'shades' | 'goggles' | 'spectacles';
 export type HairStyle = 'buzz' | 'mohawk' | 'bob' | 'ponytail' | 'long' | 'buns' | 'braids';
-export type NeckWear = 'none' | 'scarf' | 'bandana' | 'bowtie';
-export type BackWear = 'pack' | 'cape' | 'wings' | 'none';
+export type NeckWear = 'none' | 'scarf' | 'bandana' | 'bowtie' | 'medal';
+export type BackWear = 'pack' | 'cape' | 'wings' | 'jetpack' | 'none';
 export type EarWear = 'none' | 'headphones';
 export type BuildType = 'slim' | 'standard' | 'bulky';
 
@@ -34,7 +34,15 @@ export interface AvatarOptions {
   back: BackWear;
   ears: EarWear;
   build: BuildType;
+  /** Trousers color; MATCH_SUIT (-1) = same as the suit. */
+  pants: number;
+  /** Glove color; MATCH_AUTO (-1) = accent with a helmet, else skin. */
+  gloves: number;
+  boots: number;
 }
+
+/** "Same as the suit / automatic" for the optional color slots. */
+export const MATCH = -1;
 
 export interface Swatch { name: string; value: number }
 
@@ -58,6 +66,10 @@ export const ACCENTS: Swatch[] = [
   { name: 'Violet', value: 0xa78bfa }, { name: 'Coral', value: 0xfb7185 },
   { name: 'Mint', value: 0x34d399 }, { name: 'Blaze', value: 0xff5a1a },
 ];
+export const BOOTS: Swatch[] = [
+  { name: 'Graphite', value: 0x2b2f38 }, { name: 'Leather', value: 0x6b4226 },
+  { name: 'Snow', value: 0xe8eef7 }, { name: 'Ember', value: 0xe8641f }, { name: 'Gold', value: 0xd4a017 },
+];
 export const VISOR_TINTS: Swatch[] = [
   { name: 'Abyss', value: 0x0b1e33 }, { name: 'Lagoon', value: 0x0e5a6e },
   { name: 'Grape', value: 0x3a2060 }, { name: 'Gold', value: 0x6e5210 },
@@ -67,7 +79,7 @@ export const DEFAULT_AVATAR: AvatarOptions = {
   body: 'boy', headgear: 'helmet', visor: 'classic', visorTint: 0x0b1e33,
   face: 'friendly', hair: 'buzz', hairColor: 0x1c1c22, skin: 0xf2c9a0,
   suit: 0xe8eef7, accent: 0x22d3ee, neck: 'none', back: 'pack', ears: 'none',
-  build: 'standard',
+  build: 'standard', pants: MATCH, gloves: MATCH, boots: 0x2b2f38,
 };
 
 export const AVATAR_PRESETS: { name: string; icon: IconName; opts: AvatarOptions }[] = [
@@ -103,7 +115,7 @@ function pick<T>(rng: Rng, arr: readonly T[]): T {
 
 /** Random profile (seedable for tests). Unseeded = Math.random. */
 export function randomAvatarOptions(rng: Rng = Math.random): AvatarOptions {
-  const headgear = pick(rng, ['helmet', 'cap', 'beanie', 'bucket', 'crown', 'headband', 'none'] as const);
+  const headgear = pick(rng, ['helmet', 'cap', 'beanie', 'bucket', 'crown', 'headband', 'tophat', 'antennae', 'none'] as const);
   return {
     body: pick(rng, ['girl', 'boy'] as const),
     headgear,
@@ -115,10 +127,13 @@ export function randomAvatarOptions(rng: Rng = Math.random): AvatarOptions {
     skin: pick(rng, SKINS).value,
     suit: pick(rng, SUITS).value,
     accent: pick(rng, ACCENTS).value,
-    neck: pick(rng, ['none', 'scarf', 'bandana', 'bowtie'] as const),
-    back: pick(rng, ['pack', 'cape', 'wings', 'none'] as const),
+    neck: pick(rng, ['none', 'scarf', 'bandana', 'bowtie', 'medal'] as const),
+    back: pick(rng, ['pack', 'cape', 'wings', 'jetpack', 'none'] as const),
     ears: pick(rng, ['none', 'headphones'] as const),
     build: pick(rng, ['slim', 'standard', 'bulky'] as const),
+    pants: rng() < 0.6 ? MATCH : pick(rng, SUITS).value,
+    gloves: MATCH,
+    boots: pick(rng, BOOTS).value,
   };
 }
 
@@ -140,7 +155,7 @@ export function loadAvatar(): AvatarOptions {
     const o = JSON.parse(raw) as Record<string, unknown>;
     return {
       body: validEnum(o.body, ['girl', 'boy'], DEFAULT_AVATAR.body),
-      headgear: validEnum(o.headgear, ['helmet', 'cap', 'beanie', 'bucket', 'crown', 'headband', 'none'], DEFAULT_AVATAR.headgear),
+      headgear: validEnum(o.headgear, ['helmet', 'cap', 'beanie', 'bucket', 'crown', 'headband', 'tophat', 'antennae', 'none'], DEFAULT_AVATAR.headgear),
       visor: validEnum(o.visor, ['classic', 'wide', 'round'], DEFAULT_AVATAR.visor),
       visorTint: validNum(o.visorTint, DEFAULT_AVATAR.visorTint),
       face: validEnum(o.face, ['friendly', 'brave', 'shades', 'goggles', 'spectacles'], DEFAULT_AVATAR.face),
@@ -149,10 +164,13 @@ export function loadAvatar(): AvatarOptions {
       skin: validNum(o.skin, DEFAULT_AVATAR.skin),
       suit: validNum(o.suit, DEFAULT_AVATAR.suit),
       accent: validNum(o.accent, DEFAULT_AVATAR.accent),
-      neck: validEnum(o.neck, ['none', 'scarf', 'bandana', 'bowtie'], DEFAULT_AVATAR.neck),
-      back: validEnum(o.back, ['pack', 'cape', 'wings', 'none'], DEFAULT_AVATAR.back),
+      neck: validEnum(o.neck, ['none', 'scarf', 'bandana', 'bowtie', 'medal'], DEFAULT_AVATAR.neck),
+      back: validEnum(o.back, ['pack', 'cape', 'wings', 'jetpack', 'none'], DEFAULT_AVATAR.back),
       ears: validEnum(o.ears, ['none', 'headphones'], DEFAULT_AVATAR.ears),
       build: validEnum(o.build, ['slim', 'standard', 'bulky'], DEFAULT_AVATAR.build),
+      pants: validNum(o.pants, DEFAULT_AVATAR.pants),
+      gloves: validNum(o.gloves, DEFAULT_AVATAR.gloves),
+      boots: validNum(o.boots, DEFAULT_AVATAR.boots),
     };
   } catch {
     return { ...DEFAULT_AVATAR };
@@ -228,6 +246,20 @@ export function buildAvatarMesh(look: AvatarOptions, extras: BuildExtras = {}): 
     const cape = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.6, 0.16), accent);
     cape.position.set(0, 3.3, -1.32);
     body.add(cape);
+  } else if (o.back === 'jetpack') {
+    // Twin tanks on a harness plate, with glowing nozzles.
+    const metal = new THREE.MeshStandardMaterial({ color: 0xb8c2d0, roughness: 0.35, metalness: 0.7 });
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.8, 0.3), accent);
+    plate.position.set(0, 3.3, -1.12);
+    body.add(plate);
+    for (const sx of [-1, 1]) {
+      const tank = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 1.3, 4, 10), metal);
+      tank.position.set(sx * 0.42, 3.3, -1.5);
+      const glow = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.45, 10), new THREE.MeshBasicMaterial({ color: 0xffb347 }));
+      glow.position.set(sx * 0.42, 2.25, -1.5);
+      glow.rotation.x = Math.PI;
+      body.add(tank, glow);
+    }
   } else if (o.back === 'wings') {
     for (const sx of [-1, 1]) {
       const wing = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 0.14), accent);
@@ -265,6 +297,15 @@ export function buildAvatarMesh(look: AvatarOptions, extras: BuildExtras = {}): 
     const knot = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), accent);
     knot.position.set(0, 4.5, neckR * 1.05);
     body.add(knot);
+  } else if (o.neck === 'medal') {
+    const ribbon = new THREE.Mesh(new THREE.TorusGeometry(neckR * 0.98, 0.07, 6, 20), accent);
+    ribbon.position.y = 4.42;
+    ribbon.rotation.x = Math.PI / 2 - 0.35;
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.07, 18),
+      new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.3, metalness: 0.75, emissive: 0x6e5210, emissiveIntensity: 0.3 }));
+    disc.rotation.x = Math.PI / 2;
+    disc.position.set(0, 3.95, 1.12 * s);
+    body.add(ribbon, disc);
   }
 
   // Head hangs off a neck pivot so it can nod, look around and counter the
@@ -360,6 +401,27 @@ export function buildAvatarMesh(look: AvatarOptions, extras: BuildExtras = {}): 
       band.position.y = headY + 0.4;
       band.rotation.x = Math.PI / 2;
       headInner.add(band);
+    } else if (o.headgear === 'tophat') {
+      const felt = new THREE.MeshStandardMaterial({ color: 0x1b1d24, roughness: 0.7 });
+      const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.62 * s, 0.66 * s, 1.1, 16), felt);
+      crown.position.y = headY + 1.05;
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(1.05 * s, 1.05 * s, 0.08, 20), felt);
+      brim.position.y = headY + 0.5;
+      const ribbon = new THREE.Mesh(new THREE.CylinderGeometry(0.665 * s, 0.67 * s, 0.18, 16), accent);
+      ribbon.position.y = headY + 0.66;
+      headInner.add(crown, brim, ribbon);
+    } else if (o.headgear === 'antennae') {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.74 * s, 0.07, 6, 22, Math.PI), accent);
+      band.position.y = headY + 0.25;
+      headInner.add(band);
+      for (const sx of [-1, 1]) {
+        const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 6), accent);
+        stalk.position.set(sx * 0.4 * s, headY + 1.05, 0);
+        stalk.rotation.z = -sx * 0.35;
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), new THREE.MeshBasicMaterial({ color: o.accent }));
+        ball.position.set(sx * 0.58 * s, headY + 1.5, 0);
+        headInner.add(stalk, ball);
+      }
     }
     // Hair (visible with cap or bare head).
     const hy = headY + 0.35;
@@ -508,13 +570,18 @@ export function buildAvatarMesh(look: AvatarOptions, extras: BuildExtras = {}): 
   const foreGeo = hanging(0.27 * s, 0.5, 0.4);
   const bootGeo = new THREE.BoxGeometry(0.66 * s, 0.4, 1.0 * s);
   bootGeo.translate(0, 0, 0.16);
-  const bootM = new THREE.MeshStandardMaterial({ color: 0x2b2f38, roughness: 0.8 });
-  const gloveM = o.headgear === 'helmet' ? accent : skin;
+  const bootM = new THREE.MeshStandardMaterial({ color: o.boots ?? 0x2b2f38, roughness: 0.8 });
+  const gloveM = o.gloves != null && o.gloves !== MATCH
+    ? new THREE.MeshStandardMaterial({ color: o.gloves, roughness: 0.6 })
+    : o.headgear === 'helmet' ? accent : skin;
+  const pantsM = o.pants != null && o.pants !== MATCH
+    ? new THREE.MeshStandardMaterial({ color: o.pants, roughness: 0.65 })
+    : suit;
 
   const leg = (sx: number) => {
-    const thigh = new THREE.Mesh(thighGeo, suit);
+    const thigh = new THREE.Mesh(thighGeo, pantsM);
     thigh.position.set(sx * hip, HIP_Y, 0);
-    const shin = new THREE.Mesh(shinGeo, suit);
+    const shin = new THREE.Mesh(shinGeo, pantsM);
     shin.position.y = -KNEE_DROP;
     const boot = new THREE.Mesh(bootGeo, bootM);
     boot.position.y = -1.05;
