@@ -126,10 +126,11 @@ describe('LaunchLanding', () => {
   });
 
   it('shows install instructions when the browser cannot show its install prompt', async () => {
+    // No macOS installer is hosted, so the Mac button falls back to the web-app install.
     render(<LaunchLanding onProceed={() => undefined} />);
     goTo('Download');
-    fireEvent.click(screen.getByRole('button', { name: /download for windows/i }));
-    const dialog = await screen.findByRole('dialog', { name: /install terratone for windows/i });
+    fireEvent.click(screen.getByRole('button', { name: /download for mac/i }));
+    const dialog = await screen.findByRole('dialog', { name: /install terratone for mac/i });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText(/install icon in the address bar/i)).toBeInTheDocument();
   });
@@ -160,7 +161,7 @@ describe('LaunchLanding', () => {
     expect(click).not.toHaveBeenCalled();
   });
 
-  it('falls back to the stable GitHub release asset', async () => {
+  it('downloads the hosted Google Drive installers by default', async () => {
     vi.stubEnv('VITE_GITHUB_REPO', 'example/terratone');
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     render(<LaunchLanding onProceed={() => undefined} />);
@@ -168,8 +169,21 @@ describe('LaunchLanding', () => {
     fireEvent.click(screen.getByRole('button', { name: /download for windows/i }));
     await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
     const anchor = click.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.getAttribute('href')).toMatch(
+      /^https:\/\/drive\.usercontent\.google\.com\/download\?id=[\w-]+&export=download&confirm=t$/,
+    );
+  });
+
+  it('falls back to the stable GitHub release asset', async () => {
+    vi.stubEnv('VITE_GITHUB_REPO', 'example/terratone');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    render(<LaunchLanding onProceed={() => undefined} />);
+    goTo('Download');
+    fireEvent.click(screen.getByRole('button', { name: /download for mac/i }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
     expect(anchor.getAttribute('href')).toBe(
-      'https://github.com/example/terratone/releases/latest/download/TerraTone-Windows-Setup.exe',
+      'https://github.com/example/terratone/releases/latest/download/TerraTone-macOS.dmg',
     );
   });
 

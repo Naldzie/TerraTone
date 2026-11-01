@@ -68,6 +68,19 @@ const RELEASE_ASSETS: Record<Exclude<InstallPlatform, 'other'>, string> = {
   phone: 'TerraTone-Android.apk',
 };
 
+/**
+ * The published installers, shared from the owner's Google Drive (GitHub can't
+ * host the 120 MB Windows installer through its web upload). drive.usercontent
+ * with confirm=t skips Drive's preview and virus-scan pages, so the click saves
+ * the file straight away. Replace a file in Drive with "Manage versions" to
+ * keep its ID. Build-time VITE_INSTALLER_* values still win over these.
+ */
+const DRIVE = (id: string) => `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
+export const HOSTED_INSTALLERS: Partial<Record<Exclude<InstallPlatform, 'other'>, string>> = {
+  windows: DRIVE('1R3ib7MF40H9JKNJuHxCE1EFCK81xe8Kc'),
+  phone: DRIVE('1TTju_Si1JLo5EfuTCOo4R8vLCpyBlWwn'),
+};
+
 function envValue(key: string): string | null {
   const env = import.meta.env as unknown as Record<string, string | undefined>;
   const value = env[key];
@@ -82,16 +95,16 @@ function releaseUrl(asset: string): string | null {
 }
 
 /**
- * Optional direct installer artifacts. Set the platform-specific VITE_INSTALLER_*
- * variables for custom URLs, or VITE_GITHUB_REPO to use the stable asset names
- * published by the release workflow.
+ * Direct installer download for a platform: a build-time VITE_INSTALLER_* URL,
+ * else the hosted Google Drive file, else (VITE_GITHUB_REPO) the stable asset
+ * name published by the release workflow.
  */
 export function installerUrl(platform: InstallPlatform): string | null {
   if (platform === 'other') return null;
   const key = platform === 'windows' ? 'VITE_INSTALLER_WINDOWS'
     : platform === 'mac' ? 'VITE_INSTALLER_MAC'
     : 'VITE_INSTALLER_PHONE';
-  return envValue(key) ?? releaseUrl(RELEASE_ASSETS[platform]);
+  return envValue(key) ?? HOSTED_INSTALLERS[platform] ?? releaseUrl(RELEASE_ASSETS[platform]);
 }
 
 /**

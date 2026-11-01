@@ -15,13 +15,8 @@
   NODE_VERSION = "24"
   # The app calls these key-holding proxies when a visitor has no own key.
   VITE_API_PROXY = "/api"
-  # Download buttons → direct downloads of the installers shared on Google
-  # Drive (drive.usercontent.google.com with confirm=t skips Drive's preview
-  # and "can't scan for viruses" pages, so the file saves straight away).
-  # Upload a new build by replacing the file in Drive (Manage versions) to
-  # keep the same ID. No macOS build: that button offers the web-app install.
-  VITE_INSTALLER_PHONE = "https://drive.usercontent.google.com/download?id=1TTju_Si1JLo5EfuTCOo4R8vLCpyBlWwn&export=download&confirm=t"
-  VITE_INSTALLER_WINDOWS = "https://drive.usercontent.google.com/download?id=1R3ib7MF40H9JKNJuHxCE1EFCK81xe8Kc&export=download&confirm=t"
+  # Download buttons use the Google Drive installers built into
+  # src/lib/install.ts (HOSTED_INSTALLERS); no setting needed here.
 
 [functions]
   directory = "netlify/functions"
