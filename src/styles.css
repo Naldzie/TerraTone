@@ -2689,7 +2689,7 @@ html[data-lite] .landing__page, html[data-lite] .landing__hero { transform: none
    ===================================================================== */
 .jumppad {
   --jp: 84px;
-  position: relative; flex: 0 0 auto; align-self: flex-end; margin-left: auto;
+  position: relative; flex: 0 0 auto;
   width: var(--jp); height: var(--jp); padding: 0; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
@@ -2725,6 +2725,14 @@ html[data-lite] .landing__page, html[data-lite] .landing__hero { transform: none
 .jumppad[data-down] .jumppad-arrow path, .jumppad[data-down] .jumppad-arrow rect { fill: #e8fbff; stroke: #e8fbff; }
 .jumppad:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
 
+/* Right-hand column: the pad sits on top of the button dock. */
+.simright {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  margin-left: auto; min-width: 0; max-width: calc(100% - 112px);
+  pointer-events: none;
+}
+.simright > * { pointer-events: auto; }
+.simright > .simbtns { max-width: 100%; }
 @media (hover: hover) and (pointer: fine) {
   .jumppad { display: none; }
 }

@@ -361,50 +361,52 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
         >
           <div className="joyknob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
         </div>
-        <JumpPad onPress={() => simRef.current?.queueJump()} />
-        <div className="simbtns">
-          <button
-            className="btn sm ghost"
-            onClick={() => void toggleFullscreen()}
-            aria-pressed={fullscreen}
-            aria-label={fullscreen ? 'Exit fullscreen landscape' : 'Fullscreen landscape'}
-            title="Best on phones — fullscreen landscape simulation"
-          ><Icon name="maximize" /> {fullscreen ? 'Exit' : 'Fullscreen'}<Key k="F" /></button>
-          {settings && (
+        <div className="simright">
+          <JumpPad onPress={() => simRef.current?.queueJump()} />
+          <div className="simbtns">
             <button
-              className="btn sm simsettings-btn"
-              onClick={() => setSettingsOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={settingsOpen}
-              aria-label="Simulation settings"
-            ><Icon name="settings" /> Settings<Key k="Q" /></button>
-          )}
-          <button
-            className="btn sm"
-            aria-pressed={runMode}
-            onClick={() => setRunMode((v) => !v)}
-          >{runMode ? <><Icon name="run" /> Run</> : <><Icon name="walk" /> Walk</>}<Key k="Shift" /></button>
-          <button className="btn sm simjump-btn" onClick={() => simRef.current?.queueJump()} aria-label="Jump"><Icon name="arrow-up" /> Jump<Key k="Space" /></button>
-          <button
-            className="btn sm"
-            onClick={() => simRef.current?.tryToggleMount()}
-            disabled={!riding && !nearV}
-            aria-label={riding ? `Exit the ${riding === 'heli' ? 'helicopter' : 'car'}` : 'Ride the nearby vehicle'}
-          ><Icon name={rideIcon} /> {rideText}<Key k="E" /></button>
-          <button
-            className="btn sm"
-            onClick={() => talkRef.current?.()}
-            disabled={!nearNpc}
-            aria-label={nearNpc ? `Talk to ${nearNpc.name}, ${Math.round(nearNpc.dist)} meters away` : 'Walk up to a bystander to talk'}
-          ><Icon name="message" /> {nearNpc ? nearNpc.name : 'Talk'}<Key k="T" /></button>
-          <button className="btn sm ghost simhelp-btn" onClick={() => setHelpOpen(true)} aria-label="Show controls" aria-expanded={helpOpen}>
-            ?<Key k="H" />
-          </button>
-          {gyroAvail && (
-            <button className="btn sm ghost" onClick={toggleGyro} aria-pressed={gyroOn}>
-              <Icon name="smartphone" /> Gyro {gyroOn ? 'on' : 'off'}
+              className="btn sm ghost"
+              onClick={() => void toggleFullscreen()}
+              aria-pressed={fullscreen}
+              aria-label={fullscreen ? 'Exit fullscreen landscape' : 'Fullscreen landscape'}
+              title="Best on phones — fullscreen landscape simulation"
+            ><Icon name="maximize" /> {fullscreen ? 'Exit' : 'Fullscreen'}<Key k="F" /></button>
+            {settings && (
+              <button
+                className="btn sm simsettings-btn"
+                onClick={() => setSettingsOpen(true)}
+                aria-haspopup="dialog"
+                aria-expanded={settingsOpen}
+                aria-label="Simulation settings"
+              ><Icon name="settings" /> Settings<Key k="Q" /></button>
+            )}
+            <button
+              className="btn sm"
+              aria-pressed={runMode}
+              onClick={() => setRunMode((v) => !v)}
+            >{runMode ? <><Icon name="run" /> Run</> : <><Icon name="walk" /> Walk</>}<Key k="Shift" /></button>
+            <button className="btn sm simjump-btn" onClick={() => simRef.current?.queueJump()} aria-label="Jump"><Icon name="arrow-up" /> Jump<Key k="Space" /></button>
+            <button
+              className="btn sm"
+              onClick={() => simRef.current?.tryToggleMount()}
+              disabled={!riding && !nearV}
+              aria-label={riding ? `Exit the ${riding === 'heli' ? 'helicopter' : 'car'}` : 'Ride the nearby vehicle'}
+            ><Icon name={rideIcon} /> {rideText}<Key k="E" /></button>
+            <button
+              className="btn sm"
+              onClick={() => talkRef.current?.()}
+              disabled={!nearNpc}
+              aria-label={nearNpc ? `Talk to ${nearNpc.name}, ${Math.round(nearNpc.dist)} meters away` : 'Walk up to a bystander to talk'}
+            ><Icon name="message" /> {nearNpc ? nearNpc.name : 'Talk'}<Key k="T" /></button>
+            <button className="btn sm ghost simhelp-btn" onClick={() => setHelpOpen(true)} aria-label="Show controls" aria-expanded={helpOpen}>
+              ?<Key k="H" />
             </button>
-          )}
+            {gyroAvail && (
+              <button className="btn sm ghost" onClick={toggleGyro} aria-pressed={gyroOn}>
+                <Icon name="smartphone" /> Gyro {gyroOn ? 'on' : 'off'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <SimSettingsOverlay open={settingsOpen} onClose={() => setSettingsOpen(false)}>
