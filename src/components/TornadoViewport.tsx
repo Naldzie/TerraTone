@@ -342,14 +342,6 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
               : running && <span className="simhud-chip simhud-chip--live" title="Movement state"><Icon name={runMode ? 'run' : 'walk'} /> {runMode ? 'running' : 'moving'}</span>}
         {mouseLocked && <span className="simhud-chip"><Key k="Esc" /> frees the mouse</span>}
       </div>
-      {!startOverlay && !talkingNpc && (
-        <SimPrompt
-          riding={false}
-          nearVehicle={false}
-          npcName={nearNpc?.name ?? null}
-          extra={riding ? `Exit the ${riding === 'heli' ? 'copter' : 'car'}` : nearV ? `Ride the ${nearV === 'heli' ? 'copter' : 'car'}` : null}
-        />
-      )}
       {talkingNpc && chat && <div ref={bubbleRef} className="npcbubble">{chat}</div>}
       {talkingNpc && chatChoices && <div className="npcchoices">{chatChoices}</div>}
       {/* Controls */}
@@ -367,6 +359,14 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
           <div className="joyknob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
         </div>
         <div className="simright" {...multiTouchTap}>
+          {!startOverlay && !talkingNpc && (
+            <SimPrompt
+              riding={false}
+              nearVehicle={false}
+              npcName={nearNpc?.name ?? null}
+              extra={riding ? `Exit the ${riding === 'heli' ? 'copter' : 'car'}` : nearV ? `Ride the ${nearV === 'heli' ? 'copter' : 'car'}` : null}
+            />
+          )}
           <JumpPad
             label={riding === 'heli' ? 'Rise' : 'Jump'}
             onPress={() => { simRef.current?.setClimb(true); simRef.current?.queueJump(); }}

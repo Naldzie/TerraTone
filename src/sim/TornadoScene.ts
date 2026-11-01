@@ -193,6 +193,8 @@ export class TornadoSim {
 
   private pos = new THREE.Vector3(0, 0, 200);
   private velY = 0;
+  /** Standing on the ground or a rooftop (not mid-jump / falling). */
+  private onGround = true;
   private yaw = 0; // avatar facing
   private camYaw = Math.PI; private camPitch = 0.32;
   private input: SimInput = { x: 0, z: 0, run: false };
@@ -1221,8 +1223,10 @@ export class TornadoSim {
         this.pos.y = Math.max(floor, this.pos.y + this.velY * dt);
         if (this.pos.y === floor) this.velY = 0;
       }
+      this.onGround = this.pos.y <= floor + 0.05 && this.velY === 0;
     } else {
       this.jumpQueued = false;
+      this.onGround = true;
     }
 
     // Avatar animation from the ground speed actually achieved; flail while
@@ -1234,7 +1238,7 @@ export class TornadoSim {
     this.anim.update({
       dt, t: nowMs / 1000,
       speed: moving && !this.caught && !this.mounted ? this.groundSpeed : 0,
-      airborne: !this.caught && !this.mounted && this.pos.y > 0.05,
+      airborne: !this.caught && !this.mounted && !this.onGround,
       velY: this.velY,
       flail: this.caught && !this.mounted,
       ride: !!this.mounted && !this.caught,
@@ -1491,7 +1495,7 @@ export class TornadoSim {
       distance: Math.hypot(dx, dz),
       bearing: (Math.atan2(-dx, dz) * 180) / Math.PI,
       moving, speed: moving ? speed : 0,
-      airborne: (this.pos.y + this.lift) > 0.5,
+      airborne: (this.caught || this.mounted ? this.pos.y > 0.5 : !this.onGround) || this.lift > 0.5,
       caught: this.caught,
       caughtRide: this.rideSwirl?.kind ?? null,
       riding: this.mounted,

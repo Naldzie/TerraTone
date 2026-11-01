@@ -294,14 +294,6 @@ export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paus
         {mouseLocked && <span className="simhud-chip"><Key k="Esc" /> frees the mouse</span>}
         {moving && <span className="simhud-chip simhud-chip--live"><Icon name={runMode ? 'run' : 'walk'} /> {runMode ? 'running' : 'moving'}</span>}
       </div>
-      {!startOverlay && !talkingNpc && (
-        <SimPrompt
-          riding={riding}
-          vehicle={vehicle}
-          nearVehicle={nearV}
-          npcName={nearNpc?.name ?? null}
-        />
-      )}
       {talkingNpc && chat && <div ref={bubbleRef} className="npcbubble">{chat}</div>}
       {talkingNpc && chatChoices && <div className="npcchoices">{chatChoices}</div>}
       <div className="simcontrols">
@@ -318,6 +310,14 @@ export function SimViewport({ env, vals, shake = 0, quality, reduceEffects, paus
           <div className="joyknob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
         </div>
         <div className="simright" {...multiTouchTap}>
+          {!startOverlay && !talkingNpc && (
+            <SimPrompt
+              riding={riding}
+              vehicle={vehicle}
+              nearVehicle={nearV}
+              npcName={nearNpc?.name ?? null}
+            />
+          )}
           <JumpPad
             label={vehicle && riding ? 'Rise' : 'Jump'}
             onPress={() => { if (vehicle && riding) simRef.current?.setClimb(true); else simRef.current?.queueJump(); }}

@@ -2775,3 +2775,16 @@ html[data-lite] .landing__page, html[data-lite] .landing__hero { transform: none
   .npcchoices input { min-height: 32px; padding: 4px 8px; font-size: 0.76rem; }
   .npcchoices .btn.sm { min-height: 32px; padding: 3px 9px; font-size: 0.74rem; }
 }
+
+/* Touch screens: the context prompt (Ride / Exit / Talk to …) sits in the
+   right-hand column, on top of the Jump pad and buttons, so it never hides
+   the scene or the joystick. Mouse layouts keep it centred at the bottom. */
+.simright > .simprompt { pointer-events: none; }
+@media (hover: none), (pointer: coarse) {
+  .simright > .simprompt {
+    position: static; transform: none; animation: none;
+    align-self: flex-end; max-width: 100%;
+    white-space: normal; text-align: right; line-height: 1.25;
+    padding: 6px 11px; font-size: 0.76rem; gap: 6px;
+  }
+}
