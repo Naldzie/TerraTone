@@ -5,6 +5,7 @@ import { DataArt } from '../components/DataArt';
 import { CATEGORIES, PROFILES } from '../types';
 import { EIC_URL, fetchPowerClimatology, searchCmrCollections } from '../lib/nasa';
 import { Icon } from '../components/Icon';
+import { HelpTip } from '../components/HelpTip';
 
 export function Explore() {
   const { datasets, currentDatasetId, selectDataset, setTab, recent, connection, addSessionDataset } = useApp();
@@ -50,23 +51,23 @@ export function Explore() {
   return (
     <div>
       <div className="hero">
-        <h1>Hear the <span className="accent">Pulse of Our Planet</span></h1>
-        <p>TerraTone turns Earth science data into sound in real time. Pick a dataset, watch it move, and listen to decades of change.</p>
+        <h1>Hear the <span className="accent">Pulse of Our Planet</span>{' '}
+          <HelpTip label="TerraTone">
+            <b>Earth data you can hear.</b>
+            <ol>
+              <li>Pick a dataset</li>
+              <li>Values become pitch, loudness and rhythm</li>
+              <li>Sound and chart play together</li>
+              <li>Save it and replay offline</li>
+            </ol>
+          </HelpTip>
+        </h1>
         <div className="row">
           <span className="conn" data-s={connection} style={{ margin: 0 }}>
             <span className="dot" aria-hidden="true" />{connection === 'online' ? 'Online' : connection === 'cached' ? 'Using cached data' : 'Offline'}
           </span>
           <a className="btn sm ghost" href={EIC_URL} target="_blank" rel="noreferrer"><Icon name="satellite" /> NASA Earth Information Center</a>
         </div>
-      </div>
-
-      <div className="section-title"><h2>How sonification works</h2><span>4 steps</span></div>
-      <div className="how" role="list">
-        {[['1 · Pick data', 'Choose temperature, CO₂, sea level, rain, fires or greenness.'],
-          ['2 · Map to sound', 'Values become pitch, loudness, rhythm density and stereo position.'],
-          ['3 · Play in sync', 'The playhead and every note advance together, frame by frame.'],
-          ['4 · Save & replay', 'Save experiences and replay them fully offline.'],
-        ].map(([b, t]) => <div className="step" role="listitem" key={b}><b>{b}</b>{t}</div>)}
       </div>
 
       <div className="section-title"><h2>Featured datasets</h2><span>{filtered.length} available</span></div>
@@ -81,29 +82,31 @@ export function Explore() {
           <article className="card" key={d.id} aria-current={d.id === currentDatasetId ? 'true' : undefined}>
             <DataArt dataset={d} className="dataart" />
             <ProvTag p={d.provenance} />
-            <h3>{d.title}</h3>
-            <p style={{ color: 'var(--ink-dim)', fontSize: '.88rem', margin: 0 }}>{d.description}</p>
+            <h3>{d.title}{' '}
+              <HelpTip label={d.title}>
+                {d.description}
+                <br /><small>Source: <a href={d.sourceUrl} target="_blank" rel="noreferrer">{d.sourceName}</a></small>
+              </HelpTip>
+            </h3>
             <div className="meta">
               <span><Icon name="folder" /> {d.category}</span>
-              <span><Icon name="ruler" /> <code>{d.units}</code></span>
               <span><Icon name="clock" /> {d.coverage}</span>
             </div>
             <div className="row">
               <button className="btn sm primary" onClick={() => { selectDataset(d.id); setTab('listen'); }}><Icon name="play" /> Open & listen</button>
             </div>
-            <small style={{ color: 'var(--ink-faint)' }}>Source: <a href={d.sourceUrl} target="_blank" rel="noreferrer">{d.sourceName}</a></small>
           </article>
         ))}
       </div>
       {filtered.length === 0 && <div className="empty">No datasets match. Clear the search or pick another category.</div>}
 
-      <div className="section-title"><h2>Live NASA data (online)</h2><span>keyless public APIs</span></div>
+      <div className="section-title"><h2>Live NASA data</h2></div>
       <div className="card">
-        <h3><Icon name="thermometer" /> NASA POWER point climatology — real live fetch</h3>
-        <p style={{ color: 'var(--ink-dim)', fontSize: '.9rem' }}>
-          Fetches twelve monthly temperature normals for any coordinates from NASA POWER (no key needed).
-          Results are labeled <b>Live NASA data</b> and never mixed up with demos.
-        </p>
+        <h3><Icon name="thermometer" /> Temperature for any place{' '}
+          <HelpTip label="live temperature">
+            Gets 12 monthly temperature averages from NASA POWER for the spot you enter. Free, no key.
+          </HelpTip>
+        </h3>
         <div className="row">
           <div className="field" style={{ flex: '1 1 120px' }}><label htmlFor="lat">Latitude</label>
             <input id="lat" type="number" min={-90} max={90} step={0.1} value={lat} onChange={(e) => setLat(e.target.value)} /></div>
@@ -117,12 +120,13 @@ export function Explore() {
         {liveMsg && <div className="alert" role="status">{liveMsg}</div>}
         {liveErr && <div className="alert error" role="alert">{liveErr}</div>}
         <div className="field">
-          <label htmlFor="cmrq">Cite real NASA holdings (CMR collection search)</label>
+          <label htmlFor="cmrq">Search NASA's catalog{' '}
+            <HelpTip label="catalog search">Finds real NASA datasets by name (citations, not values).</HelpTip>
+          </label>
           <div className="row">
             <input id="cmrq" type="text" value={cmrQ} onChange={(e) => setCmrQ(e.target.value)} style={{ flex: '2 1 200px' }} />
             <button className="btn sm" onClick={runCmr} disabled={connection === 'offline'}><Icon name="search" /> Search NASA CMR</button>
           </div>
-          <span className="hint">Public catalog search — returns dataset citations, not values. Docs: cmr.earthdata.nasa.gov</span>
         </div>
         {cmr.length > 0 && (
           <ul>{cmr.map((c) => <li key={c.id} style={{ fontSize: '.85rem' }}>{c.title} <code style={{ color: 'var(--ink-faint)' }}>{c.id}</code></li>)}</ul>
@@ -130,7 +134,7 @@ export function Explore() {
       </div>
 
       <div className="alert row" style={{ marginTop: 12, justifyContent: 'space-between' }}>
-        <span><Icon name="satellite" /> Looking for live feeds? Real-time events, Earth photos, and the space picture of the day live under <b>Live</b>.</span>
+        <span><Icon name="satellite" /> Live events and Earth photos</span>
         <button className="btn sm primary" onClick={() => setTab('online')}><Icon name="broadcast" /> Open Live tab</button>
       </div>
 

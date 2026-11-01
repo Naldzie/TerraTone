@@ -76,9 +76,10 @@ function localInstallers(): Plugin {
 // Hosted builds (VITE_API_PROXY set, e.g. Netlify) reach the APIs through the
 // key-holding server functions. Never bake the owner's keys into the public
 // bundle there, even if they were added to the host as VITE_* variables.
+// Empty (not deleted): a variable already set wins over the .env files.
 if (process.env.VITE_API_PROXY) {
-  delete process.env.VITE_GEMINI_API_KEY;
-  delete process.env.VITE_NASA_API_KEY;
+  process.env.VITE_GEMINI_API_KEY = '';
+  process.env.VITE_NASA_API_KEY = '';
 }
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };

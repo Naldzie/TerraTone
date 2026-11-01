@@ -5,6 +5,7 @@ import { hasGeminiAccess } from '../lib/keys';
 import { speakText, stopSpeaking, ttsAvailable } from '../lib/tts';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
+import { HelpTip } from './HelpTip';
 
 const TTS_ON_KEY = 'terratone.aiVoice';
 
@@ -65,11 +66,12 @@ export function AiExplain({ brief }: { brief: DatasetBrief }) {
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
-      <h3 style={{ margin: 0 }}><Icon name="sparkles" /> AI explanation <small style={{ color: 'var(--ink-faint)' }}>optional · online only</small></h3>
-      <p style={{ color: 'var(--ink-dim)', fontSize: '.88rem', margin: 0 }}>
-        Ask Gemini to describe what this dataset sounds like from start to finish, based on its real statistics and mapping.
-        {ttsAvailable() && ' With voice on, the answer is read aloud as it arrives.'}
-      </p>
+      <h3 style={{ margin: 0 }}><Icon name="sparkles" /> AI explanation{' '}
+        <HelpTip label="AI explanation">
+          Gemini describes what you will hear, using this dataset's real numbers. Needs internet.
+          {ttsAvailable() && ' With voice on, it reads the answer aloud.'}
+        </HelpTip>
+      </h3>
       <div className="row">
         <button className="btn sm primary" onClick={ask} disabled={busy || connection === 'offline'}>
           {busy ? 'Thinking…' : <><Icon name="sparkles" /> Explain this sound</>}

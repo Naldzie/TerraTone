@@ -8,7 +8,7 @@
  */
 import * as THREE from 'three';
 import { clampToWorld, resolveCollisions, WORLD, WORLD_SCALE } from './stormTypes';
-import { Npc } from './npc';
+import { Npc, NPC_COUNT, NPC_NAMES, npcTierFor } from './npc';
 import { AvatarAnimator, buildAvatarMesh, disposeAvatarBody, DEFAULT_AVATAR } from './avatar';
 import { blinkLights, buildHouse, buildTower, PALETTES } from './packs/buildings';
 import type { AvatarOptions } from './avatar';
@@ -47,23 +47,28 @@ export interface SimSnapshot {
   temperature: number;
 }
 
-interface HeliState {
-  group: THREE.Group;
-  rotor: THREE.Object3D;
-  x: number; z: number; y: number; yaw: number;
-  homeX: number; homeZ: number;
-}
+type VehicleKind = 'heli' | 'car';
 
-interface CarState {
+/** NPC joyrider: driver npc index, remaining time, wander target. */
+interface Driver { npc: number; timer: number; tx: number; tz: number; retarget: number }
+
+/** A rideable helicopter or car (several of each are parked around the town). */
+interface Vehicle {
+  kind: VehicleKind;
   group: THREE.Group;
+  rotor: THREE.Object3D | null;
   wheels: THREE.Mesh[];
   x: number; z: number; y: number; yaw: number;
-  homeX: number; homeZ: number;
+  homeX: number; homeZ: number; homeY: number; homeYaw: number;
+  collider: { x: number; z: number; r: number };
+  driver: Driver | null;
 }
 
 // Skid compensation so the upscaled helicopter still rests on the ground.
 const HELI_GROUND_Y = -0.7;
 const BOARD_RADIUS = 11;
+/** Model offset: the upscaled copter's skids sit below its origin. */
+const lift = (v: Vehicle) => (v.kind === 'heli' ? HELI_GROUND_Y : 0);
 
 export const CATCH_RADIUS = 60; // yellow danger ring: entering it picks you up
 const DESTROY_RADIUS = 30; // trees flattened / NPCs scattered inside this radius
@@ -223,7 +228,7 @@ export class TornadoSim {
   private swirlH = 0;
   private caughtT = 0;
   /** An NPC-driven vehicle the funnel grabbed — swirls on its own, never moves the explorer. */
-  private rideSwirl: { kind: 'heli' | 'car'; a: number; r: number; h: number; t: number } | null = null;
+  private rideSwirl: { v: Vehicle; a: number; r: number; h: number; t: number } | null = null;
   // Tree destruction state.
   private treeTrunks: THREE.InstancedMesh | null = null;
   private treeLeaves: THREE.InstancedMesh | null = null;
@@ -231,14 +236,8 @@ export class TornadoSim {
   private treeAlive: boolean[] = [];
   private treeRegrow: number[] = [];
   private dummy = new THREE.Object3D();
-  private heli!: HeliState;
-  private car!: CarState;
-  private mounted: 'heli' | 'car' | null = null;
-  /** NPC joyriders: { vehicle, driver npc index, remaining time, target }. */
-  private heliDriver: { npc: number; timer: number; tx: number; tz: number; retarget: number } | null = null;
-  private carDriver: { npc: number; timer: number; tx: number; tz: number; retarget: number } | null = null;
-  private heliCollider = { x: 28, z: 225, r: 5 };
-  private carCollider = { x: -28, z: 225, r: 5 };
+  private vehicles: Vehicle[] = [];
+  private mounted: Vehicle | null = null;
   private reduceMotion: boolean;
   private quality: SimQuality;
   private onTick: (s: SimSnapshot) => void;
@@ -256,7 +255,7 @@ export class TornadoSim {
     this.scene.background = new THREE.Color(0x0a1428);
     this.scene.fog = new THREE.Fog(0x0a1428, 120, 620);
     this.buildWorld();
-    this.npcTier = this.quality === 'low' ? 2 : this.quality === 'high' ? 6 : 4;
+    this.npcTier = npcTierFor(this.quality);
     this.spawnNpcs();
     this.buildFloaters();
     this.resize();
@@ -589,10 +588,10 @@ export class TornadoSim {
     this.avatar.rotation.z = 0;
     this.mounted = null;
     this.avatar.visible = true;
-    if (this.heliDriver) this.npcs[this.heliDriver.npc].place(this.heli.homeX + 5, this.heli.homeZ + 5);
-    if (this.carDriver) this.npcs[this.carDriver.npc].place(this.car.homeX - 5, this.car.homeZ + 5);
-    this.heliDriver = null;
-    this.carDriver = null;
+    for (const v of this.vehicles) {
+      if (v.driver) this.npcs[v.driver.npc].place(v.homeX + 5, v.homeZ + 5);
+      v.driver = null;
+    }
     this.scarIdx = 0;
     this.lastScar = { x: 1e9, z: 1e9 };
     for (const s of this.scarPool) {
@@ -600,14 +599,12 @@ export class TornadoSim {
       (s.material as THREE.MeshBasicMaterial).opacity = 0;
     }
     this.applyNpcVisibility();
-    this.heli.x = this.heli.homeX; this.heli.z = this.heli.homeZ; this.heli.y = 0; this.heli.yaw = 0;
-    this.heli.group.position.set(this.heli.homeX, HELI_GROUND_Y, this.heli.homeZ);
-    this.heli.group.rotation.set(0, 0, 0);
-    this.heliCollider.x = this.heli.homeX; this.heliCollider.z = this.heli.homeZ;
-    this.car.x = this.car.homeX; this.car.z = this.car.homeZ; this.car.yaw = 0;
-    this.car.group.position.set(this.car.homeX, 0, this.car.homeZ);
-    this.car.group.rotation.set(0, 0, 0);
-    this.carCollider.x = this.car.homeX; this.carCollider.z = this.car.homeZ;
+    for (const v of this.vehicles) {
+      v.x = v.homeX; v.z = v.homeZ; v.y = v.homeY; v.yaw = v.homeYaw;
+      v.group.position.set(v.x, v.y + lift(v), v.z);
+      v.group.rotation.set(0, v.yaw, 0);
+      v.collider.x = v.x; v.collider.z = v.z;
+    }
   }
   setQuality(qn: SimQuality): void {
     if (qn === this.quality) return;
@@ -622,15 +619,19 @@ export class TornadoSim {
     this.rain.geometry.dispose();
     this.buildParticles(QUALITY[qn]);
     this.buildRain();
-    this.npcTier = qn === 'low' ? 2 : qn === 'high' ? 6 : 4;
+    this.npcTier = npcTierFor(qn);
     this.applyNpcVisibility();
   }
   /** Bystander NPCs: wander, keep clear of buildings, flee the funnel. */
   private spawnNpcs(): void {
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.4;
+    for (let i = 0; i < NPC_COUNT; i++) {
+      // Spawn in pairs (friends wander together and soon strike up a chat).
+      const pair = Math.floor(i / 2);
+      const a = (pair / Math.ceil(NPC_COUNT / 2)) * Math.PI * 2 + 0.4;
+      const r = 110 + (pair % 3) * 35;
       const npc = new Npc(2000 + i * 77,
-        Math.cos(a) * 150, Math.sin(a) * 150);
+        Math.cos(a) * r + (i % 2) * 6, Math.sin(a) * r);
+      npc.name = NPC_NAMES[(i * 7) % NPC_NAMES.length];
       this.npcs.push(npc);
       this.npcDead.push(0);
       this.scene.add(npc.group);
@@ -751,88 +752,129 @@ export class TornadoSim {
     this.camera.updateProjectionMatrix();
   }
 
-  /** Rideable helicopter + car, parked near the spawn. Board with E / Ride. */
+  /** Rideable helicopters + cars: parked by the spawn, around town and on a rooftop helipad. */
   private buildVehicles(): void {
-    // --- Helicopter (faces +z at yaw 0) ---
-    const hg = new THREE.Group();
-    const hullMat = new THREE.MeshStandardMaterial({ color: 0xe8641f, roughness: 0.5 });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x0b1e33, roughness: 0.15, metalness: 0.6 });
     const darkMat = new THREE.MeshLambertMaterial({ color: 0x2a2f38 });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.4, 3, 4, 10), hullMat);
-    body.rotation.x = Math.PI / 2;
-    body.position.y = 2.2;
-    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.05, 12, 10), glassMat);
-    cockpit.position.set(0, 2.4, 1.9);
-    const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 5.5, 8), hullMat);
-    boom.rotation.x = Math.PI / 2;
-    boom.position.set(0, 2.5, -4.2);
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.5, 0.9), hullMat);
-    fin.position.set(0, 3.1, -6.8);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.1, 8), darkMat);
-    mast.position.y = 3.9;
-    const rotor = new THREE.Group();
-    const bladeGeo = new THREE.BoxGeometry(9.5, 0.12, 0.7);
-    const bladeMat = new THREE.MeshLambertMaterial({ color: 0x1c2027 });
-    const b1 = new THREE.Mesh(bladeGeo, bladeMat);
-    const b2 = new THREE.Mesh(bladeGeo, bladeMat);
-    b2.rotation.y = Math.PI / 2;
-    rotor.add(b1, b2);
-    rotor.position.y = 4.5;
-    for (const sx of [-1.4, 1.4]) {
-      const skid = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 4.2), darkMat);
-      skid.position.set(sx, 0.55, 0.4);
-      hg.add(skid);
-    }
-    hg.add(body, cockpit, boom, fin, mast, rotor);
-    hg.scale.setScalar(1.6);
-    hg.position.set(28, HELI_GROUND_Y, 225);
-    this.scene.add(hg);
-    this.heli = { group: hg, rotor, x: 28, z: 225, y: 0, yaw: 0, homeX: 28, homeZ: 225 };
-    this.colliders.push(this.heliCollider);
+    // Nudge a parking spot clear of buildings, trees and other vehicles.
+    const clear = (x: number, z: number): { x: number; z: number } => {
+      for (let k = 0; k < 24; k++) {
+        const blocked = this.colliders.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + 6)
+          || this.vehicles.some((v) => Math.hypot(v.x - x, v.z - z) < 14);
+        if (!blocked) break;
+        x += 9 * Math.cos(k * 1.7); z += 9 * Math.sin(k * 1.7);
+      }
+      return { x, z };
+    };
+    const add = (v: Omit<Vehicle, 'homeX' | 'homeZ' | 'homeY' | 'homeYaw' | 'collider' | 'driver'>) => {
+      const full: Vehicle = { ...v, homeX: v.x, homeZ: v.z, homeY: v.y, homeYaw: v.yaw, collider: { x: v.x, z: v.z, r: 5 }, driver: null };
+      full.group.position.set(v.x, v.y + lift(full), v.z);
+      full.group.rotation.y = v.yaw;
+      this.scene.add(full.group);
+      // Rooftop copters aren't ground obstacles.
+      if (v.y === 0) this.colliders.push(full.collider);
+      this.vehicles.push(full);
+    };
 
-    // --- Car ---
-    const cg = new THREE.Group();
-    const paintMat = new THREE.MeshStandardMaterial({ color: 0xb03a3a, roughness: 0.4 });
-    const bodyC = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.1, 6.5), paintMat);
-    bodyC.position.y = 1.15;
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.0, 3.2), glassMat);
-    cabin.position.set(0, 2.15, -0.3);
-    const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
-    const wheels: THREE.Mesh[] = [];
-    const wheelGeo = new THREE.CylinderGeometry(0.7, 0.7, 0.6, 12);
-    for (const [wx, wz] of [[-1.7, 2.2], [1.7, 2.2], [-1.7, -2.2], [1.7, -2.2]] as const) {
-      const wheel = new THREE.Mesh(wheelGeo, darkMat);
-      wheel.rotation.z = Math.PI / 2;
-      wheel.position.set(wx, 0.7, wz);
-      wheels.push(wheel);
-      cg.add(wheel);
-    }
-    for (const hx of [-1.1, 1.1]) {
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.2), lightMat);
-      head.position.set(hx, 1.1, 3.3);
-      cg.add(head);
-    }
-    cg.add(bodyC, cabin);
-    cg.scale.setScalar(1.5);
-    cg.position.set(-28, 0, 225);
-    this.scene.add(cg);
-    this.car = { group: cg, wheels, x: -28, z: 225, y: 0, yaw: 0, homeX: -28, homeZ: 225 };
-    this.colliders.push(this.carCollider);
+    // --- Helicopters (face +z at yaw 0) ---
+    const heli = (color: number, x: number, z: number, y = 0, yaw = 0) => {
+      const hg = new THREE.Group();
+      const hullMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.4, 3, 4, 10), hullMat);
+      body.rotation.x = Math.PI / 2;
+      body.position.y = 2.2;
+      const cockpit = new THREE.Mesh(new THREE.SphereGeometry(1.05, 12, 10), glassMat);
+      cockpit.position.set(0, 2.4, 1.9);
+      const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 5.5, 8), hullMat);
+      boom.rotation.x = Math.PI / 2;
+      boom.position.set(0, 2.5, -4.2);
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.5, 0.9), hullMat);
+      fin.position.set(0, 3.1, -6.8);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.1, 8), darkMat);
+      mast.position.y = 3.9;
+      const rotor = new THREE.Group();
+      const bladeGeo = new THREE.BoxGeometry(9.5, 0.12, 0.7);
+      const bladeMat = new THREE.MeshLambertMaterial({ color: 0x1c2027 });
+      const b1 = new THREE.Mesh(bladeGeo, bladeMat);
+      const b2 = new THREE.Mesh(bladeGeo, bladeMat);
+      b2.rotation.y = Math.PI / 2;
+      rotor.add(b1, b2);
+      rotor.position.y = 4.5;
+      for (const sx of [-1.4, 1.4]) {
+        const skid = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 4.2), darkMat);
+        skid.position.set(sx, 0.55, 0.4);
+        hg.add(skid);
+      }
+      hg.add(body, cockpit, boom, fin, mast, rotor);
+      hg.scale.setScalar(1.6);
+      const p = y > 0 ? { x, z } : clear(x, z);
+      add({ kind: 'heli', group: hg, rotor, wheels: [], x: p.x, z: p.z, y, yaw });
+    };
+
+    // --- Cars ---
+    const car = (color: number, x: number, z: number, yaw = 0) => {
+      const cg = new THREE.Group();
+      const paintMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4 });
+      const bodyC = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.1, 6.5), paintMat);
+      bodyC.position.y = 1.15;
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.0, 3.2), glassMat);
+      cabin.position.set(0, 2.15, -0.3);
+      const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+      const wheels: THREE.Mesh[] = [];
+      const wheelGeo = new THREE.CylinderGeometry(0.7, 0.7, 0.6, 12);
+      for (const [wx, wz] of [[-1.7, 2.2], [1.7, 2.2], [-1.7, -2.2], [1.7, -2.2]] as const) {
+        const wheel = new THREE.Mesh(wheelGeo, darkMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(wx, 0.7, wz);
+        wheels.push(wheel);
+        cg.add(wheel);
+      }
+      for (const hx of [-1.1, 1.1]) {
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.2), lightMat);
+        head.position.set(hx, 1.1, 3.3);
+        cg.add(head);
+      }
+      cg.add(bodyC, cabin);
+      cg.scale.setScalar(1.5);
+      const p = clear(x, z);
+      add({ kind: 'car', group: cg, rotor: null, wheels, x: p.x, z: p.z, y: 0, yaw });
+    };
+
+    heli(0xe8641f, 28, 225);                 // orange, by the spawn
+    car(0xb03a3a, -28, 225);                 // red, by the spawn
+    heli(0x2563eb, 95, 170, 0, -0.8);        // blue, east field
+    car(0x2f6fd1, -60, 200, 0.6);            // blue
+    car(0xe0b324, 70, 245, -1.2);            // yellow
+    // One copter waits on the tallest rooftop helipad.
+    const pad = [...this.roofs].sort((a, b) => b.top - a.top)[0];
+    if (pad) heli(0x16a34a, pad.x, pad.z, pad.top, 0.4);
+    else heli(0x16a34a, -110, 150);
   }
 
-  /** Nearest boardable vehicle, or null (NPC-driven ones are taken). */
-  nearVehicle(): 'heli' | 'car' | null {
-    // Same level as the copter (ground or the rooftop it landed on).
-    if (!this.heliDriver && Math.abs(this.pos.y - this.heli.y) < 6 && Math.hypot(this.pos.x - this.heli.x, this.pos.z - this.heli.z) < BOARD_RADIUS) return 'heli';
-    if (!this.carDriver && this.pos.y < 3 && Math.hypot(this.pos.x - this.car.x, this.pos.z - this.car.z) < BOARD_RADIUS) return 'car';
-    return null;
+  /** Nearest boardable vehicle (not NPC-driven), or null. */
+  private nearestFreeVehicle(): Vehicle | null {
+    let best: Vehicle | null = null;
+    let bestD = BOARD_RADIUS;
+    for (const v of this.vehicles) {
+      if (v.driver) continue;
+      // Copters: same level (ground or the rooftop it sits on). Cars: on the ground.
+      if (v.kind === 'heli' ? Math.abs(this.pos.y - v.y) >= 6 : this.pos.y >= 3) continue;
+      const d = Math.hypot(this.pos.x - v.x, this.pos.z - v.z);
+      if (d < bestD) { best = v; bestD = d; }
+    }
+    return best;
+  }
+
+  /** Kind of the nearest boardable vehicle, or null. */
+  nearVehicle(): VehicleKind | null {
+    return this.nearestFreeVehicle()?.kind ?? null;
   }
 
   /** Board a nearby vehicle, or dismount the current one. Returns what's ridden now. */
-  tryToggleMount(): 'heli' | 'car' | null {
+  tryToggleMount(): VehicleKind | null {
     if (this.mounted) {
-      const v = this.mounted === 'heli' ? this.heli : this.car;
-      const roof = this.mounted === 'heli' ? this.roofAt(v.x, v.z) : 0;
+      const v = this.mounted;
+      const roof = v.kind === 'heli' ? this.roofAt(v.x, v.z) : 0;
       if (roof > 0 && v.y <= roof + 1) {
         // Landed on a rooftop: step out onto the roof beside the copter.
         const a = v.yaw + Math.PI / 2;
@@ -855,15 +897,14 @@ export class TornadoSim {
       this.avatar.rotation.x = 0;
       return null;
     }
-    const near = this.nearVehicle();
+    const near = this.nearestFreeVehicle();
     if (near) {
       this.mounted = near;
       this.avatar.visible = false;
       this.caught = false;
       this.avatar.rotation.x = 0;
-      if (near === 'heli') this.pos.set(this.heli.x, this.heli.y, this.heli.z);
-      else this.pos.set(this.car.x, 0, this.car.z);
-      return near;
+      this.pos.set(near.x, near.kind === 'heli' ? near.y : 0, near.z);
+      return near.kind;
     }
     return null;
   }
@@ -881,31 +922,32 @@ export class TornadoSim {
     return this.roofUnder(x, z)?.top ?? 0;
   }
 
+  /** Is bystander `i` currently driving a vehicle? */
+  private isDriving(i: number): boolean {
+    return this.vehicles.some((v) => v.driver?.npc === i);
+  }
+
   /** NPC joyriders: nearby bystanders board free vehicles, joyride, hop out. */
   private updateDrivers(dt: number): void {
-    this.driveNpcVehicle('heli', dt);
-    this.driveNpcVehicle('car', dt);
+    for (const v of this.vehicles) this.driveNpcVehicle(v, dt);
     this.tryNpcBoard();
   }
 
   private tryNpcBoard(): void {
-    const free: ('heli' | 'car')[] = [];
-    if (!this.heliDriver && this.mounted !== 'heli') free.push('heli');
-    if (!this.carDriver && this.mounted !== 'car') free.push('car');
-    for (const kind of free) {
-      const v = kind === 'heli' ? this.heli : this.car;
+    // Leave most vehicles parked for the visitor: at most two joyrides at once.
+    if (this.vehicles.filter((v) => v.driver).length >= 2) return;
+    for (const v of this.vehicles) {
+      if (v.driver || v === this.mounted) continue;
       for (let i = 0; i < this.npcs.length; i++) {
         const npc = this.npcs[i];
-        if (!npc.group.visible) continue;
-        if (this.heliDriver?.npc === i || this.carDriver?.npc === i) continue;
+        if (!npc.group.visible || this.isDriving(i)) continue;
+        if (Math.abs(npc.group.position.y - v.y) > 4) continue; // can't reach a rooftop copter
         const dx = npc.group.position.x - v.x;
         const dz = npc.group.position.z - v.z;
         if (Math.hypot(dx, dz) < 14) {
           npc.group.visible = false;
-          const drv = { npc: i, timer: 15 + Math.random() * 15, tx: v.x, tz: v.z, retarget: 0 };
-          if (kind === 'heli') this.heliDriver = drv;
-          else this.carDriver = drv;
-          break;
+          v.driver = { npc: i, timer: 15 + Math.random() * 15, tx: v.x, tz: v.z, retarget: 0 };
+          return;
         }
       }
     }
@@ -917,7 +959,7 @@ export class TornadoSim {
     for (let i = 0; i < this.npcs.length; i++) {
       const npc = this.npcs[i];
       if (!npc.group.visible) continue;
-      if (this.heliDriver?.npc === i || this.carDriver?.npc === i) continue;
+      if (this.isDriving(i)) continue;
       const d = Math.hypot(npc.group.position.x - this.pos.x, npc.group.position.z - this.pos.z);
       if (d <= range && (!best || d < best.dist)) best = { name: npc.name, dist: d };
     }
@@ -931,7 +973,7 @@ export class TornadoSim {
       const npc = this.npcs[i];
       if (!npc.group.visible) continue;
       let state: 'wandering' | 'fleeing' | 'driving' = 'wandering';
-      if (this.heliDriver?.npc === i || this.carDriver?.npc === i) state = 'driving';
+      if (this.isDriving(i)) state = 'driving';
       else {
         const ndx = npc.group.position.x - this.tx;
         const ndz = npc.group.position.z - this.tz;
@@ -942,26 +984,23 @@ export class TornadoSim {
     return out;
   }
 
-  private driveNpcVehicle(kind: 'heli' | 'car', dt: number): void {
-    const drv = kind === 'heli' ? this.heliDriver : this.carDriver;
+  private driveNpcVehicle(v: Vehicle, dt: number): void {
+    const drv = v.driver;
     if (!drv) return;
     // While the funnel is flinging it the driver just holds on (no bail-out, no steering).
-    if (this.rideSwirl?.kind === kind) return;
+    if (this.rideSwirl?.v === v) return;
     drv.timer -= dt;
     drv.retarget -= dt;
     if (drv.timer <= 0) {
-      const v = kind === 'heli' ? this.heli : this.car;
       const npc = this.npcs[drv.npc];
       npc.place(
         Math.min(WORLD.halfSize, Math.max(-WORLD.halfSize, v.x + 5)),
         Math.min(WORLD.halfSize, Math.max(-WORLD.halfSize, v.z + 5)),
       );
       npc.group.visible = this.npcsOn && drv.npc < this.npcTier;
-      if (kind === 'heli') this.heliDriver = null;
-      else this.carDriver = null;
+      v.driver = null;
       return;
     }
-    const v = kind === 'heli' ? this.heli : this.car;
     const dx = drv.tx - v.x;
     const dz = drv.tz - v.z;
     if (Math.hypot(dx, dz) < 10 || drv.retarget <= 0) {
@@ -973,48 +1012,44 @@ export class TornadoSim {
       return;
     }
     const d = Math.hypot(dx, dz) || 1;
-    const spd = kind === 'heli' ? 14 : 16;
+    const spd = v.kind === 'heli' ? 14 : 16;
     const next = clampToWorld({ x: v.x + (dx / d) * spd * dt, z: v.z + (dz / d) * spd * dt });
-    const fixed = kind === 'heli'
+    const fixed = v.kind === 'heli'
       ? next   // airborne: straight over / through buildings
-      : resolveCollisions(next, this.colliders.filter((c) => c !== this.carCollider));
+      : resolveCollisions(next, this.colliders.filter((c) => c !== v.collider));
     v.x = fixed.x; v.z = fixed.z;
+    v.collider.x = v.x; v.collider.z = v.z;
     const targetYaw = Math.atan2(dx, dz);
     let dy = targetYaw - v.yaw;
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
     v.yaw += dy * Math.min(1, dt * 5);
-    if (kind === 'heli') {
-      this.heli.y += (Math.max(14, this.roofAt(this.heli.x, this.heli.z) + 8) - this.heli.y) * Math.min(1, dt * 1.2);
-      this.heli.group.position.set(this.heli.x, this.heli.y + HELI_GROUND_Y, this.heli.z);
-      this.heli.group.rotation.y = this.heli.yaw;
+    if (v.kind === 'heli') {
+      v.y += (Math.max(14, this.roofAt(v.x, v.z) + 8) - v.y) * Math.min(1, dt * 1.2);
     } else {
-      this.car.y = Math.max(0, this.car.y - 22 * dt);
-      this.car.group.position.set(this.car.x, this.car.y, this.car.z);
-      this.car.group.rotation.y = this.car.yaw;
-      for (const w of this.car.wheels) w.rotation.x += dt * 8;
+      v.y = Math.max(0, v.y - 22 * dt);
+      for (const w of v.wheels) w.rotation.x += dt * 8;
     }
+    v.group.position.set(v.x, v.y + lift(v), v.z);
+    v.group.rotation.y = v.yaw;
   }
 
   /** Swirl (then fling) an NPC-driven vehicle the funnel grabbed. Never touches the explorer. */
   private updateRideSwirl(dt: number, nowMs: number): void {
     if (!this.rideSwirl) {
-      for (const kind of ['heli', 'car'] as const) {
-        const driving = kind === 'heli' ? this.heliDriver : this.carDriver;
-        if (!driving) continue;
-        const v = kind === 'heli' ? this.heli : this.car;
+      for (const v of this.vehicles) {
+        if (!v.driver) continue;
         const gdx = v.x - this.tx; const gdz = v.z - this.tz;
         const gdist = Math.hypot(gdx, gdz);
         if (gdist < CATCH_RADIUS) {
-          this.rideSwirl = { kind, a: Math.atan2(-gdz, gdx), r: Math.max(10, gdist), h: v.y, t: 0 };
+          this.rideSwirl = { v, a: Math.atan2(-gdz, gdx), r: Math.max(10, gdist), h: v.y, t: 0 };
           break;
         }
       }
       if (!this.rideSwirl) return;
     }
     const s = this.rideSwirl;
-    const v = s.kind === 'heli' ? this.heli : this.car;
-    const lift = s.kind === 'heli' ? HELI_GROUND_Y : 0;
+    const v = s.v;
     s.t += dt;
     s.a += dt * (2.2 + this.intensity * 2.6);
     s.r += (16 - s.r) * Math.min(1, dt * 0.8);
@@ -1024,7 +1059,7 @@ export class TornadoSim {
       const fx = this.tx + Math.cos(s.a) * 95;
       const fz = this.tz - Math.sin(s.a) * 95;
       v.x = fx; v.z = fz; v.y = 6;
-      v.group.position.set(fx, 6 + lift, fz);
+      v.group.position.set(fx, 6 + lift(v), fz);
       v.group.rotation.x = 0;
       this.rideSwirl = null;
       return;
@@ -1033,10 +1068,9 @@ export class TornadoSim {
     const pz = this.tz - Math.sin(s.a) * s.r;
     const py = Math.max(0, s.h + Math.sin(nowMs / 300) * 2);
     v.x = px; v.z = pz; v.y = py;
-    v.group.position.set(px, py + lift, pz);
+    v.group.position.set(px, py + lift(v), pz);
     v.group.rotation.x += dt * 4;
-    const col = s.kind === 'heli' ? this.heliCollider : this.carCollider;
-    col.x = px; col.z = pz;
+    v.collider.x = px; v.collider.z = pz;
   }
 
   /** On-foot step with collisions + facing. Returns true (moving). */
@@ -1091,54 +1125,53 @@ export class TornadoSim {
       while (dd < -Math.PI) dd += Math.PI * 2;
       return current + dd * Math.min(1, dt2 * rate);
     };
-    if (this.mounted === 'car' && !this.caught) {
+    const mv = this.mounted;
+    if (mv?.kind === 'car' && !this.caught) {
       moving = len > 0.01;
       this.jumpQueued = false;
       if (moving) {
-        const nx = this.car.x + (wish.x / len) * 30 * dt;
-        const nz = this.car.z + (wish.z / len) * 30 * dt;
-        const others = this.colliders.filter((c) => c !== this.carCollider);
+        const nx = mv.x + (wish.x / len) * 30 * dt;
+        const nz = mv.z + (wish.z / len) * 30 * dt;
+        const others = this.colliders.filter((c) => c !== mv.collider);
         const fixed = resolveCollisions(clampToWorld({ x: nx, z: nz }), others);
-        this.car.x = fixed.x; this.car.z = fixed.z;
-        this.car.yaw = turnTo(this.car.yaw, wish.x / len, wish.z / len, 8, dt);
+        mv.x = fixed.x; mv.z = fixed.z;
+        mv.yaw = turnTo(mv.yaw, wish.x / len, wish.z / len, 8, dt);
       }
       // A flung car falls back to earth.
-      this.car.y = Math.max(0, this.car.y - 22 * dt);
-      this.carCollider.x = this.car.x;
-      this.carCollider.z = this.car.z;
-      this.car.group.position.set(this.car.x, this.car.y, this.car.z);
-      this.car.group.rotation.y = this.car.yaw;
-      for (const w of this.car.wheels) w.rotation.x += dt * (moving ? 14 : 0);
-      this.pos.set(this.car.x, this.car.y, this.car.z);
-      this.yaw = this.car.yaw;
-    } else if (this.mounted === 'heli' && !this.caught) {
+      mv.y = Math.max(0, mv.y - 22 * dt);
+      mv.collider.x = mv.x;
+      mv.collider.z = mv.z;
+      mv.group.position.set(mv.x, mv.y, mv.z);
+      mv.group.rotation.y = mv.yaw;
+      for (const w of mv.wheels) w.rotation.x += dt * (moving ? 14 : 0);
+      this.pos.set(mv.x, mv.y, mv.z);
+      this.yaw = mv.yaw;
+    } else if (mv?.kind === 'heli' && !this.caught) {
       moving = len > 0.01;
       this.jumpQueued = false;
       if (moving) {
         // Airborne: the copter passes over / through buildings — no ground colliders.
-        const fixed = clampToWorld({ x: this.heli.x + (wish.x / len) * 24 * dt, z: this.heli.z + (wish.z / len) * 24 * dt });
-        this.heli.x = fixed.x; this.heli.z = fixed.z;
-        this.heli.yaw = turnTo(this.heli.yaw, wish.x / len, wish.z / len, 6, dt);
+        const fixed = clampToWorld({ x: mv.x + (wish.x / len) * 24 * dt, z: mv.z + (wish.z / len) * 24 * dt });
+        mv.x = fixed.x; mv.z = fixed.z;
+        mv.yaw = turnTo(mv.yaw, wish.x / len, wish.z / len, 6, dt);
       }
       // Hold Jump/Space to climb. Cruising, it hovers a few metres above
       // whatever is below; let go of the stick and it settles down to land —
       // on the ground or on a rooftop helipad.
-      const below = this.roofAt(this.heli.x, this.heli.z);
+      const below = this.roofAt(mv.x, mv.z);
       const targetY = this.climb ? Math.max(34, below + 12) : moving ? Math.max(9, below + 6) : below;
-      this.heli.y += (targetY - this.heli.y) * Math.min(1, dt * (moving || this.climb ? 1.5 : 1.1));
-      if (!moving && !this.climb && Math.abs(this.heli.y - below) < 0.15) this.heli.y = below;
-      this.heliCollider.x = this.heli.x;
-      this.heliCollider.z = this.heli.z;
-      this.heli.group.position.set(this.heli.x, this.heli.y + HELI_GROUND_Y, this.heli.z);
-      this.heli.group.rotation.y = this.heli.yaw;
-      this.heli.group.rotation.x = moving ? 0.16 : 0;
-      this.pos.set(this.heli.x, this.heli.y, this.heli.z);
-      this.yaw = this.heli.yaw;
+      mv.y += (targetY - mv.y) * Math.min(1, dt * (moving || this.climb ? 1.5 : 1.1));
+      if (!moving && !this.climb && Math.abs(mv.y - below) < 0.15) mv.y = below;
+      mv.collider.x = mv.x;
+      mv.collider.z = mv.z;
+      mv.group.position.set(mv.x, mv.y + HELI_GROUND_Y, mv.z);
+      mv.group.rotation.y = mv.yaw;
+      mv.group.rotation.x = moving ? 0.16 : 0;
+      this.pos.set(mv.x, mv.y, mv.z);
+      this.yaw = mv.yaw;
     } else if (this.caught) {
       // Caught: swirl around the funnel — you, or the vehicle you ride.
       // Struggle outward to break free, or ride it out and get flung clear.
-      const hv = this.mounted === 'heli';
-      const cv = this.mounted === 'car';
       moving = true;
       const rdx = this.pos.x - this.tx;
       const rdz = this.pos.z - this.tz;
@@ -1152,14 +1185,10 @@ export class TornadoSim {
       const px = this.tx + Math.cos(this.swirlA) * this.swirlR;
       const pz = this.tz - Math.sin(this.swirlA) * this.swirlR;
       const py = Math.max(0, this.swirlH + Math.sin(nowMs / 300) * 2);
-      if (hv) {
-        this.heli.x = px; this.heli.z = pz; this.heli.y = py;
-        this.heli.group.position.set(px, py + HELI_GROUND_Y, pz);
-        this.heli.group.rotation.x += dt * 4;
-      } else if (cv) {
-        this.car.x = px; this.car.z = pz; this.car.y = py;
-        this.car.group.position.set(px, py, pz);
-        this.car.group.rotation.x += dt * 4;
+      if (mv) {
+        mv.x = px; mv.z = pz; mv.y = py;
+        mv.group.position.set(px, py + lift(mv), pz);
+        mv.group.rotation.x += dt * 4;
       }
       this.pos.set(px, py, pz);
       this.jumpQueued = false;
@@ -1171,21 +1200,17 @@ export class TornadoSim {
         const fx = this.tx + Math.cos(this.swirlA) * fr;
         const fz = this.tz - Math.sin(this.swirlA) * fr;
         const fy = flung ? 6 : py * 0.5;
-        if (hv) {
-          this.heli.x = fx; this.heli.z = fz; this.heli.y = fy;
-          this.heli.group.position.set(fx, fy + HELI_GROUND_Y, fz);
-          this.heli.group.rotation.x = 0;
-        } else if (cv) {
-          this.car.x = fx; this.car.z = fz; this.car.y = fy;
-          this.car.group.position.set(fx, fy, fz);
-          this.car.group.rotation.x = 0;
+        if (mv) {
+          mv.x = fx; mv.z = fz; mv.y = fy;
+          mv.group.position.set(fx, fy + lift(mv), fz);
+          mv.group.rotation.x = 0;
         } else {
           this.velY = flung ? 3 : 0;
         }
         this.pos.set(fx, fy, fz);
         this.caught = false;
         this.avatar.rotation.x = 0;
-      } else if (!hv && !cv) {
+      } else if (!mv) {
         this.avatar.rotation.x += dt * 5; // tumbling ride
       }
     } else if (len > 0.01) {
@@ -1207,8 +1232,8 @@ export class TornadoSim {
     }
     // An NPC-driven vehicle that blunders in swirls on its own track.
     this.updateRideSwirl(dt, nowMs);
-    // Rotor idles on the pad, screams in the air.
-    this.heli.rotor.rotation.y += dt * (this.mounted === 'heli' ? 22 : 2.5);
+    // Rotors idle on the pad, scream in the air.
+    for (const v of this.vehicles) if (v.rotor) v.rotor.rotation.y += dt * (v === this.mounted || v.driver ? 22 : 2.5);
     // Jump / gravity (suspended while caught — the funnel has you — or driving).
     if (!this.caught && !this.mounted) {
       // Floor is the roof you're standing on (if you're up there), else the ground.
@@ -1262,7 +1287,7 @@ export class TornadoSim {
     this.updateDrivers(dt);
     for (let i = 0; i < this.npcs.length; i++) {
       const npc = this.npcs[i];
-      if (this.heliDriver?.npc === i || this.carDriver?.npc === i) continue;
+      if (this.isDriving(i)) continue;
       if (!npc.group.visible) {
         this.npcDead[i] -= dt;
         if (this.npcDead[i] <= 0) {
@@ -1497,8 +1522,8 @@ export class TornadoSim {
       moving, speed: moving ? speed : 0,
       airborne: (this.caught || this.mounted ? this.pos.y > 0.5 : !this.onGround) || this.lift > 0.5,
       caught: this.caught,
-      caughtRide: this.rideSwirl?.kind ?? null,
-      riding: this.mounted,
+      caughtRide: this.rideSwirl?.v.kind ?? null,
+      riding: this.mounted?.kind ?? null,
       nearVehicle: this.nearVehicle(),
       nearNpc: this.nearestNpc(),
       hazardX: this.tx, hazardZ: this.tz,

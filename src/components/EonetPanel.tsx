@@ -9,6 +9,7 @@ import { hazardById } from '../sim/hazards';
 import type { HazardId } from '../sim/hazards';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
+import { HelpTip } from './HelpTip';
 
 /** Live NASA natural-events feed with map, filters, cache, and sim launches. */
 export function EonetPanel({ onLaunchSim }: { onLaunchSim: (id: HazardId) => void }) {
@@ -74,11 +75,17 @@ export function EonetPanel({ onLaunchSim }: { onLaunchSim: (id: HazardId) => voi
 
   return (
     <div className="card">
-      <h3 style={{ margin: 0 }}><Icon name="flame" /> Live natural events — NASA EONET <small style={{ color: 'var(--ink-faint)' }}>keyless feed</small></h3>
-      <p style={{ color: 'var(--ink-dim)', fontSize: '.88rem', margin: 0 }}>
-        Real open events tracked by NASA right now: wildfires, storms, volcanoes, quakes and more.
-        {fetchedAt && <> Showing data from <b>{new Date(fetchedAt).toLocaleString()}</b>{fromCache && ' (cached — offline copy)'}.</>}
-      </p>
+      <h3 style={{ margin: 0 }}><Icon name="flame" /> Natural events now{' '}
+        <HelpTip label="natural events">
+          Wildfires, storms, volcanoes and more that NASA is tracking right now. The simulators they open are practice
+          worlds, not forecasts.
+        </HelpTip>
+      </h3>
+      {fetchedAt && (
+        <small style={{ color: 'var(--ink-faint)' }}>
+          Updated {new Date(fetchedAt).toLocaleString()}{fromCache && ' (saved copy)'}
+        </small>
+      )}
       <div className="row">
         <button className="btn sm" onClick={() => load(false)} disabled={busy || offline}>
           {busy ? 'Updating…' : <><Icon name="refresh" /> Refresh live feed</>}
@@ -135,9 +142,6 @@ export function EonetPanel({ onLaunchSim }: { onLaunchSim: (id: HazardId) => voi
           );
         })}
       </ul>
-      <small style={{ color: 'var(--ink-faint)' }}>
-        Events are real observations — the simulators they link to remain virtual training worlds, not forecasts.
-      </small>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { InstrumentProfilePanel } from '../components/InstrumentProfilePanel';
 import { summarizeSeries } from '../lib/dataUtils';
 import { PROFILES } from '../types';
 import { Icon } from '../components/Icon';
+import { HelpTip } from '../components/HelpTip';
 
 export function Listen() {
   const { datasets, currentDataset: d, selectDataset, mapping, updateMapping, setTab } = useApp();
@@ -31,27 +32,26 @@ export function Listen() {
       </div>
       <div className="card" style={{ marginBottom: 12 }}>
         <ProvTag p={d.provenance} />
-        <h2 style={{ margin: 0 }}>{d.title}</h2>
-        <p style={{ color: 'var(--ink-dim)', margin: 0 }}>{d.description}</p>
+        <h2 style={{ margin: 0 }}>{d.title}{' '}
+          <HelpTip label="this dataset">
+            {d.description}
+            <br /><br /><b>How it sounds:</b> {d.mappingNote} Louder or higher does not mean more dangerous.
+            <br /><br /><small>Source: <a href={d.sourceUrl} target="_blank" rel="noreferrer">{d.sourceName}</a> · {d.license} · updated {d.updatedAt}</small>
+          </HelpTip>
+        </h2>
         <div className="meta">
-          <span><Icon name="ruler" /> <code>{d.units}</code> (range {d.range[0]}…{d.range[1]})</span>
-          <span><Icon name="clock" /> {d.coverage} · {d.resolution}</span>
-          <span><Icon name="building" /> Source: <a href={d.sourceUrl} target="_blank" rel="noreferrer">{d.sourceName}</a></span>
-          <span><Icon name="scroll" /> {d.license}</span>
-          <span><Icon name="refresh" /> Updated {d.updatedAt}</span>
+          <span><Icon name="ruler" /> <code>{d.units}</code></span>
+          <span><Icon name="clock" /> {d.coverage}</span>
         </div>
-        <p className="callout">
-          <b>Mapping meaning:</b> {d.mappingNote} Sonification is illustrative — a louder or higher sound is
-          <b> not </b> automatically a more severe event; it only reflects the mapping you chose below.
-        </p>
       </div>
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="field" style={{ margin: 0 }}>
-          <label htmlFor="prof">Dataset sound profile</label>
+          <label htmlFor="prof">Sound style{' '}
+            <HelpTip label="sound style">{PROFILES.find((p) => p.id === mapping.profileId)?.blurb}</HelpTip>
+          </label>
           <select id="prof" value={mapping.profileId} onChange={(e) => updateMapping({ profileId: e.target.value as never })}>
             {PROFILES.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.minFreq}–{p.maxFreq} Hz</option>)}
           </select>
-          <span className="hint">{PROFILES.find((p) => p.id === mapping.profileId)?.blurb}</span>
         </div>
         <InstrumentProfilePanel embedded playing={datasetPlaying} />
       </div>

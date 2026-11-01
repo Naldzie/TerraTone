@@ -86,8 +86,7 @@ export function PlacePickerMap({ lat, lon, onPick }: PlacePickerProps) {
         aria-label="World map for choosing a place. Click to drop the reading point, drag the pin to move it, or use + and − to zoom. The Place menu above does the same without a pointer."
       />
       <p className="placepicker__hint">
-        <b>Click the map</b> to drop the point — or drag the pin. No latitude or longitude typing needed.
-        Zoom with the <b>+</b> / <b>−</b> controls (scroll stays with the page).
+        Tap the map or drag the pin to pick a place.
       </p>
     </div>
   );

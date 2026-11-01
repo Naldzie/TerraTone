@@ -3,6 +3,7 @@ import { instrumentEngine } from '../audio/instrumentEngine';
 import { effectTags, getInstrument, getProfile, INSTRUMENTS, type InstrumentId } from '../audio/instrumentProfiles';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
+import { HelpTip } from './HelpTip';
 
 /**
  * Sound Profile controls (Listen tab): pick one of eight instruments, then one
@@ -67,8 +68,11 @@ export function InstrumentProfilePanel({
           {!embedded && (
             <span className="sound-profile__eyebrow"><Icon name="music" /> Sound profile</span>
           )}
-          <h2>{instrument.name} voice</h2>
-          <p>{instrument.description}</p>
+          <h2>{instrument.name} voice{' '}
+            <HelpTip label={`${instrument.name} voice`}>
+              {instrument.description} Made live in your browser, works offline.
+            </HelpTip>
+          </h2>
         </div>
         <div className="sound-profile__badge" data-state={badgeState} role="status">
           <span className="dot" aria-hidden="true" />
@@ -101,9 +105,6 @@ export function InstrumentProfilePanel({
             </button>
           ))}
         </div>
-        <p className="sound-profile__instrument-blurb">
-          <b>{instrument.tagline}.</b> Five profiles, synthesized live in your browser — no samples, works offline.
-        </p>
       </fieldset>
 
       <div className="sound-profile-grid" role="radiogroup" aria-label={`Sound profiles for ${instrument.name}`}>
@@ -116,17 +117,12 @@ export function InstrumentProfilePanel({
               role="radio"
               aria-checked={selected}
               className="sound-profile-card"
+              title={`${p.description} (${effectTags(p.spec).join(', ')})`}
               onClick={() => chooseProfile(p.id)}
             >
               <span className="sound-profile-card__head">
                 {p.name}
                 {selected && <Icon name="check" />}
-              </span>
-              <span className="sound-profile-card__desc">{p.description}</span>
-              <span className="sound-profile-tags">
-                {effectTags(p.spec).map((tag) => (
-                  <span key={tag} className="sound-profile-tag">{tag}</span>
-                ))}
               </span>
             </button>
           );
@@ -153,8 +149,8 @@ export function InstrumentProfilePanel({
             onChange={(e) => updateMapping({ useInstrumentVoice: e.target.checked })}
           />
           <span>
-            <b>Route the player through this instrument</b>
-            <small>Every dataset frame is voiced with this profile — pick Piano, press Play, and the data sounds like the piano. Off falls back to the plain synth above. Missing data stays silent.</small>
+            <b>Play the data with this instrument</b>{' '}
+            <HelpTip label="instrument playback">On: the data plays as this instrument. Off: a simple tone. Gaps in the data stay silent.</HelpTip>
           </span>
         </label>
       </div>

@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import type { IconName } from '../components/Icon';
 import { WORLD } from './stormTypes';
-import { Npc } from './npc';
+import { Npc, NPC_COUNT, NPC_NAMES, npcTierFor } from './npc';
 import { AvatarAnimator, buildAvatarMesh, disposeAvatarBody, DEFAULT_AVATAR, randomAvatarOptions } from './avatar';
 import type { AvatarOptions } from './avatar';
 
@@ -81,12 +81,17 @@ export interface EnvVehicle {
   thrust?: (k: number, dt: number) => void;
 }
 
+/** Where a fleet copy parks, plus an optional accent tint. */
+export interface VehicleSpot { x: number; y?: number; z: number; tint?: number }
+
 export interface EnvVehicleDef {
   label: string;
   icon: IconName;
   speed: number;
   boostSpeed: number;
-  build: (scene: THREE.Scene, addCollider: (x: number, z: number, r: number) => void) => EnvVehicle;
+  build: (scene: THREE.Scene, addCollider: (x: number, z: number, r: number) => void, spot?: VehicleSpot) => EnvVehicle;
+  /** Extra copies parked at these spots (board whichever is nearest). */
+  fleet?: VehicleSpot[];
   /** True 3D flight: climbs / dives with the camera, banks into turns, holds altitude. */
   flight?: boolean;
   /** Pilot sits inside (hide the explorer while aboard). */
@@ -258,6 +263,8 @@ export class EnvSim {
   private vehicleDef: EnvVehicleDef | undefined;
   private vehicle: EnvVehicle | null = null;
   private vehCollider = { x: 0, z: 0, r: 5 };
+  /** Every parked copy; `vehicle` / `veh` / `vehCollider` point at the one in use. */
+  private fleet: { vehicle: EnvVehicle; veh: EnvSim['veh']; collider: { x: number; z: number; r: number } }[] = [];
   private mounted = false;
   private veh = { x: 0, z: 0, y: 2.5, yaw: 0, bank: 0, pitch: 0 };
   private climb = false;
@@ -326,14 +333,19 @@ export class EnvSim {
     void density;
     this.vehicleDef = opts.vehicle;
     if (opts.vehicle) {
-      this.vehicle = opts.vehicle.build(this.scene, (x, z, r) => this.addCollider({ x, z, r }));
-      this.veh = { x: this.vehicle.home.x, z: this.vehicle.home.z, y: this.vehicle.home.y ?? 2.5, yaw: 0, bank: 0, pitch: 0 };
-      this.vehicle.group.rotation.order = 'YXZ';
-      this.vehCollider.x = this.veh.x;
-      this.vehCollider.z = this.veh.z;
-      if (!opts.vehicle.flight) this.addCollider(this.vehCollider);
+      const def = opts.vehicle;
+      const spots: (VehicleSpot | undefined)[] = [undefined, ...(def.fleet ?? [])];
+      for (const spot of spots) {
+        const vehicle = def.build(this.scene, (x, z, r) => this.addCollider({ x, z, r }), spot);
+        const veh = { x: vehicle.home.x, z: vehicle.home.z, y: vehicle.home.y ?? 2.5, yaw: 0, bank: 0, pitch: 0 };
+        vehicle.group.rotation.order = 'YXZ';
+        const collider = { x: veh.x, z: veh.z, r: 5 };
+        if (!def.flight) this.addCollider(collider);
+        this.fleet.push({ vehicle, veh, collider });
+      }
+      this.useVehicle(0);
     }
-    this.npcTier = q === 'low' ? 2 : q === 'high' ? 6 : 4;
+    this.npcTier = npcTierFor(q);
     this.spawnNpcs();
     this.resize();
     this.last = performance.now();
@@ -377,13 +389,17 @@ export class EnvSim {
 
   /** Bystander NPCs: wander, keep clear of buildings, flee the hazard. */
   private spawnNpcs(): void {
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.4;
+    for (let i = 0; i < NPC_COUNT; i++) {
+      // Spawn in pairs (friends wander together and soon strike up a chat).
+      const pair = Math.floor(i / 2);
+      const a = (pair / Math.ceil(NPC_COUNT / 2)) * Math.PI * 2 + 0.4;
+      const r = 110 + (pair % 3) * 35;
       const look = this.opts.npcHelmets || this.opts.spaceSuit
         ? { ...randomAvatarOptions(seeded(3000 + i * 13)), headgear: 'helmet' as const }
         : undefined;
       const npc = new Npc(1000 + i * 77,
-        Math.cos(a) * 150, Math.sin(a) * 150, this.swim || this.zeroG, look, this.opts.spaceSuit);
+        Math.cos(a) * r + (i % 2) * 6, Math.sin(a) * r, this.swim || this.zeroG, look, this.opts.spaceSuit);
+      npc.name = NPC_NAMES[(i * 7 + 3) % NPC_NAMES.length];
       if (this.opts.npcFleeRadius != null) npc.fleeRadius = this.opts.npcFleeRadius;
       if (this.shadows) castShadows(npc.group);
       this.npcs.push(npc);
@@ -482,12 +498,29 @@ export class EnvSim {
   setInput(x: number, z: number, run: boolean): void { this.input = { x, z, run }; }
   queueJump(): void { this.jumpQueued = true; }
   setClimb(on: boolean): void { this.climb = on; }
-  /** Within boarding range of the parked vehicle? */
+  /** Point the active-vehicle fields at fleet entry `i`. */
+  private useVehicle(i: number): void {
+    const f = this.fleet[i];
+    if (!f) return;
+    this.vehicle = f.vehicle;
+    this.veh = f.veh;
+    this.vehCollider = f.collider;
+  }
+  /** Index of the nearest parked vehicle within boarding range, or -1. */
+  private nearestVehicle(): number {
+    const range = this.vehicleDef?.boardRange ?? 11;
+    const fly = this.zeroG || this.vehicleDef?.flight;
+    let best = -1; let bestD = range;
+    this.fleet.forEach((f, i) => {
+      const d = Math.hypot(this.pos.x - f.veh.x, fly ? this.pos.y - f.veh.y : 0, this.pos.z - f.veh.z);
+      if (d < bestD) { best = i; bestD = d; }
+    });
+    return best;
+  }
+  /** Within boarding range of a parked vehicle? */
   nearVehicle(): boolean {
     if (!this.vehicle || this.mounted) return false;
-    const range = this.vehicleDef?.boardRange ?? 11;
-    const dy = this.zeroG || this.vehicleDef?.flight ? this.pos.y - this.veh.y : 0;
-    return Math.hypot(this.pos.x - this.veh.x, dy, this.pos.z - this.veh.z) < range;
+    return this.nearestVehicle() >= 0;
   }
   /** Board / dismount. Returns mounted state. */
   tryToggleMount(): boolean {
@@ -504,7 +537,9 @@ export class EnvSim {
       this.avatar.visible = true;
       return false;
     }
-    if (!this.nearVehicle()) return false;
+    const near = this.nearestVehicle();
+    if (near < 0) return false;
+    this.useVehicle(near);
     this.mounted = true;
     this.jumpQueued = false;
     return true;
@@ -537,17 +572,18 @@ export class EnvSim {
     this.prevX = this.pos.x; this.prevZ = this.pos.z;
     this.groundSpeed = 0;
     this.feature.reset?.();
-    if (this.vehicle) {
-      this.veh = { x: this.vehicle.home.x, z: this.vehicle.home.z, y: this.vehicle.home.y ?? 2.5, yaw: 0, bank: 0, pitch: 0 };
-      this.vehicle.group.position.set(this.veh.x, this.veh.y, this.veh.z);
-      this.vehicle.group.rotation.set(0, 0, 0);
-      this.vehCollider.x = this.veh.x;
-      this.vehCollider.z = this.veh.z;
+    for (const f of this.fleet) {
+      Object.assign(f.veh, { x: f.vehicle.home.x, z: f.vehicle.home.z, y: f.vehicle.home.y ?? 2.5, yaw: 0, bank: 0, pitch: 0 });
+      f.vehicle.group.position.set(f.veh.x, f.veh.y, f.veh.z);
+      f.vehicle.group.rotation.set(0, 0, 0);
+      f.collider.x = f.veh.x;
+      f.collider.z = f.veh.z;
     }
+    this.useVehicle(0);
   }
   setQuality(q: EnvQuality): void {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q === 'low' ? 1 : q === 'medium' ? 1.5 : 2));
-    this.npcTier = q === 'low' ? 2 : q === 'high' ? 6 : 4;
+    this.npcTier = npcTierFor(q);
     this.applyNpcVisibility();
   }
   resize(): void {

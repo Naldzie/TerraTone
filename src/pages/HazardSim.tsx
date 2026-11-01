@@ -31,15 +31,15 @@ const OCEAN_VEHICLE: EnvVehicleDef = {
 /* Space worlds: zero-g EVA in full suits, with a flyable shuttle parked nearby. */
 const SPACE: Partial<Record<HazardId, { vehicle: EnvVehicleDef; env: Record<string, unknown> }>> = {
   sun: {
-    vehicle: spaceshipDef({ x: 30, y: 3, z: 150 }),
+    vehicle: spaceshipDef({ x: 30, y: 3, z: 150 }, [{ x: -40, y: 8, z: 175, tint: 0xf59e0b }, { x: 75, y: 14, z: 120, tint: 0xf43f5e }]),
     env: { zeroG: true, spaceSuit: true, npcFleeRadius: 0 },
   },
   blackhole: {
-    vehicle: spaceshipDef({ x: 30, y: 6, z: 160 }),
+    vehicle: spaceshipDef({ x: 30, y: 6, z: 160 }, [{ x: -40, y: 12, z: 185, tint: 0xf59e0b }, { x: 80, y: 18, z: 135, tint: 0xa78bfa }]),
     env: { zeroG: true, noGround: true, spaceSuit: true, npcFleeRadius: 0, faceHazard: true, pull: blackholePull, killZone: BH_KILL_ZONE },
   },
   bigbang: {
-    vehicle: spaceshipDef({ x: 30, y: 6, z: 160 }),
+    vehicle: spaceshipDef({ x: 30, y: 6, z: 160 }, [{ x: -40, y: 12, z: 185, tint: 0xf59e0b }, { x: 80, y: 18, z: 135, tint: 0xa78bfa }]),
     env: { zeroG: true, noGround: true, spaceSuit: true, npcFleeRadius: 0, faceHazard: true },
   },
 };

@@ -4,6 +4,7 @@ import type { Apod } from '../lib/apod';
 import { getNasaKey } from '../lib/keys';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
+import { HelpTip } from './HelpTip';
 
 /** Astronomy Picture of the Day — labeled as astronomy, cached offline. */
 export function ApodPanel() {
@@ -53,7 +54,9 @@ export function ApodPanel() {
 
   return (
     <div className="card">
-      <h3 style={{ margin: 0 }}><Icon name="telescope" /> Astronomy Picture of the Day <small style={{ color: 'var(--ink-faint)' }}>space bonus · via NASA key</small></h3>
+      <h3 style={{ margin: 0 }}><Icon name="telescope" /> Space picture of the day{' '}
+        <HelpTip label="space picture">NASA's Astronomy Picture of the Day.</HelpTip>
+      </h3>
       <div className="row">
         <button className="btn sm" onClick={load} disabled={busy || offline}>{busy ? 'Loading…' : <><Icon name="refresh" /> Refresh</>}</button>
         {!getNasaKey() && (

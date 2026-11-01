@@ -74,3 +74,41 @@ describe('NPC emotes', () => {
     expect(npc.emoting).toBeNull();
   });
 });
+
+describe('NPC small talk', () => {
+  const pair = () => {
+    const a = new Npc(4242, 0, 0);
+    const b = new Npc(9191, 4, 0);
+    return [a, b] as const;
+  };
+  const tick = (npcs: readonly Npc[], i: number, threat = { x: 999, z: 999 }) => {
+    for (const n of npcs) n.update(1 / 30, i / 30, 300, [], threat, { x: 200, z: 200 }, npcs);
+  };
+
+  it('two idle neighbors strike up a conversation and take turns', () => {
+    const npcs = pair();
+    let i = 0;
+    while (i < 30 * 60 && !npcs[0].chattingWith) tick(npcs, i++);
+    expect(npcs[0].chattingWith).toBe(npcs[1].name);
+    expect(npcs[1].chattingWith).toBe(npcs[0].name);
+    const said = new Set<string>();
+    for (let k = 0; k < 30 * 9 && npcs[0].chattingWith; k++) {
+      tick(npcs, i++);
+      for (const n of npcs) if (n.saying) said.add(`${n.name}:${n.saying}`);
+      // Exactly one speaker at a time.
+      expect(npcs.filter((n) => n.saying).length).toBeLessThanOrEqual(1);
+    }
+    expect(said.size).toBeGreaterThanOrEqual(2);
+    expect(npcs[0].chattingWith).toBeNull();
+  });
+
+  it('breaks off the chat to flee the hazard', () => {
+    const npcs = pair();
+    let i = 0;
+    while (i < 30 * 60 && !npcs[0].chattingWith) tick(npcs, i++);
+    expect(npcs[0].chattingWith).not.toBeNull();
+    tick(npcs, i++, { x: 10, z: 10 });
+    expect(npcs[0].chattingWith).toBeNull();
+    expect(npcs[1].chattingWith).toBeNull();
+  });
+});

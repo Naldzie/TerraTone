@@ -6,14 +6,16 @@
  * green starboard, white strobe). EnvSim flies it in true 3D (flight: true).
  */
 import * as THREE from 'three';
-import type { EnvVehicle, EnvVehicleDef } from '../EnvSim';
+import type { EnvVehicle, EnvVehicleDef, VehicleSpot } from '../EnvSim';
 
-function buildShip(home: { x: number; y: number; z: number }) {
-  return (scene: THREE.Scene): EnvVehicle => {
+function buildShip(base: { x: number; y: number; z: number }) {
+  return (scene: THREE.Scene, _addCollider: unknown, spot?: VehicleSpot): EnvVehicle => {
+    const home = spot ? { x: spot.x, y: spot.y ?? base.y, z: spot.z } : base;
     const g = new THREE.Group();
     const hullM = new THREE.MeshStandardMaterial({ color: 0xe9edf3, roughness: 0.35, metalness: 0.35 });
     const darkM = new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.5, metalness: 0.6 });
-    const accentM = new THREE.MeshStandardMaterial({ color: 0x22d3ee, roughness: 0.4, emissive: 0x0a4a58, emissiveIntensity: 0.6 });
+    const tint = spot?.tint ?? 0x22d3ee;
+    const accentM = new THREE.MeshStandardMaterial({ color: tint, roughness: 0.4, emissive: new THREE.Color(tint).multiplyScalar(0.3), emissiveIntensity: 0.6 });
     const glassM = new THREE.MeshStandardMaterial({ color: 0x0b2238, roughness: 0.05, metalness: 0.9, emissive: 0x0a2840, emissiveIntensity: 0.4 });
 
     // Fuselage along +z (nose forward).
@@ -116,8 +118,8 @@ function buildShip(home: { x: number; y: number; z: number }) {
   };
 }
 
-/** A flyable shuttle parked at `home`. */
-export function spaceshipDef(home: { x: number; y: number; z: number }): EnvVehicleDef {
+/** A flyable shuttle parked at `home`, plus optional extra ships in a `fleet`. */
+export function spaceshipDef(home: { x: number; y: number; z: number }, fleet: VehicleSpot[] = []): EnvVehicleDef {
   return {
     label: 'Spaceship',
     icon: 'rocket',
@@ -129,5 +131,6 @@ export function spaceshipDef(home: { x: number; y: number; z: number }): EnvVehi
     boardRange: 16,
     hint: 'Float to the shuttle, press E or Ride — the stick steers, aim the nose with the camera to climb or dive, hold Rise to climb, Run boosts.',
     build: buildShip(home),
+    fleet,
   };
 }

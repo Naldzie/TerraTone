@@ -3,6 +3,7 @@ import { epicPngUrl, fetchEpicNatural } from '../lib/epic';
 import type { EpicImage } from '../lib/epic';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
+import { HelpTip } from './HelpTip';
 
 /** Latest full-disc Earth photos from NASA EPIC (DSCOVR). Keyless public service. */
 export function EpicPanel() {
@@ -31,11 +32,9 @@ export function EpicPanel() {
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
-      <h3 style={{ margin: 0 }}><Icon name="globe" /> Earth from space — NASA EPIC <small style={{ color: 'var(--ink-faint)' }}>live photos</small></h3>
-      <p style={{ color: 'var(--ink-dim)', fontSize: '.88rem', margin: 0 }}>
-        The latest natural-color full-disc Earth images from DSCOVR/EPIC (public domain).
-        No API key needed.
-      </p>
+      <h3 style={{ margin: 0 }}><Icon name="globe" /> Earth from space{' '}
+        <HelpTip label="Earth from space">The newest full-Earth photos from NASA's EPIC camera, a million miles away.</HelpTip>
+      </h3>
       <div className="row">
         <button className="btn sm" onClick={load} disabled={busy || offline}>
           {busy ? 'Loading…' : <><Icon name="refresh" /> Refresh images</>}

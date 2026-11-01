@@ -10,6 +10,10 @@ import type { AvatarOptions, BuiltAvatar } from './avatar';
  * Visitors get noticed: when the player wanders close, each bystander may
  * pause, turn their way and pop a random emote bubble (wave, smile, …) —
  * weighted, deterministic per seed, cancelled while fleeing or chatting.
+ *
+ * Bystanders also chat with each other: two idle neighbors stop, face each
+ * other and trade a short scripted exchange in speech bubbles (local lines,
+ * no network), broken off if either has to flee or the visitor talks to one.
  */
 
 export interface NpcCollider { x: number; z: number; r: number }
@@ -24,10 +28,85 @@ function mulberry(seed: number): () => number {
   };
 }
 
+/** Bystanders spawned per world, and how many each graphics tier shows. */
+export const NPC_COUNT = 14;
+export function npcTierFor(q: 'low' | 'medium' | 'high'): number {
+  return q === 'low' ? 5 : q === 'high' ? NPC_COUNT : 9;
+}
+
 const FLEE_RADIUS = 110;
 const NOTICE_RADIUS = 24;   // they look up when the visitor gets this close
 const NOTICE_CANCEL = 30;   // visitor walked on past → they carry on
 const EMOTE_LIFE = 2.2;     // seconds an emote bubble stays up
+
+/** Bystander-to-bystander small talk: each topic is an A, B, A exchange. */
+export const SMALL_TALK: Record<'ground' | 'water' | 'space', string[][]> = {
+  ground: [
+    ['Did you feel that?', 'Yeah. Stay alert.', "Let's keep our distance."],
+    ['Any signal on your phone?', 'One bar. Barely.', "Mine's completely dead."],
+    ['NASA tracks this from space, right?', 'Yep, satellites see it live.', "That's so cool."],
+    ['Should we head back?', 'Give it a minute.', 'Okay, but no closer.'],
+    ["Where's the nearest shelter?", 'Past the tall building.', 'Good, remember that.'],
+    ['Look at the sky!', "I've never seen it like this.", 'Get a photo, quick!'],
+    ['Ever done a safety drill?', 'Every year at school.', 'Same. It really helps.'],
+    ['Nice suit!', 'Thanks, it is brand new.', 'Very explorer-chic.'],
+  ],
+  water: [
+    ['Check your air!', 'Plenty left.', "Good, let's explore."],
+    ['Did you see the whale?', 'Huge, and so calm!', 'Best dive ever.'],
+    ["The current's strong here.", 'Stay close to me.', 'Got it.'],
+    ["What's that glowing?", 'A jellyfish, I think.', "Don't touch it!"],
+  ],
+  space: [
+    ['Look how small Earth is.', 'Like a blue marble.', 'Makes you think.'],
+    ["How's your oxygen?", 'Ninety percent.', 'Same here.'],
+    ["Don't drift too far!", 'My tether is fine.', 'Okay, just checking.'],
+    ['Can you hear anything?', 'Nothing. Space is silent.', 'Except our radios!'],
+  ],
+};
+const CHAT_RADIUS = 10;     // neighbors this close may strike up a conversation
+const CHAT_LINE_S = 2.8;    // seconds each line stays up
+const CHAT_WAIT_MIN = 18;   // seconds before the same bystander chats again
+
+interface Conversation { a: Npc; b: Npc; lines: string[]; idx: number; t: number }
+
+/* Speech-bubble textures, rendered once per line. */
+const lineTexCache = new Map<string, { tex: THREE.CanvasTexture; aspect: number }>();
+function lineTexture(text: string): { tex: THREE.CanvasTexture; aspect: number } {
+  const hit = lineTexCache.get(text);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  const font = '600 30px system-ui, Segoe UI, Roboto, sans-serif';
+  let w = 320;
+  if (ctx) { ctx.font = font; w = Math.ceil(ctx.measureText(text).width) + 44; }
+  c.width = Math.max(120, w);
+  c.height = 84;
+  if (ctx) {
+    ctx.font = font;
+    ctx.fillStyle = 'rgba(248, 252, 255, 0.96)';
+    ctx.strokeStyle = 'rgba(8, 15, 30, 0.55)';
+    ctx.lineWidth = 3;
+    roundedRect(ctx, 4, 4, c.width - 8, 56, 22);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(c.width / 2 - 12, 58);
+    ctx.lineTo(c.width / 2, 80);
+    ctx.lineTo(c.width / 2 + 12, 58);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#0b1424';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, c.width / 2, 33);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const out = { tex, aspect: c.width / c.height };
+  lineTexCache.set(text, out);
+  return out;
+}
 
 export type EmoteName = 'wave' | 'smile' | 'thumbs-up' | 'alert' | 'heart' | 'cheer' | 'peace';
 
@@ -233,6 +312,8 @@ function emoteTexture(emote: EmoteName): THREE.CanvasTexture {
 export const NPC_NAMES = [
   'Mina', 'Theo', 'Priya', 'Jonas', 'Amara', 'Rafi',
   'Sofia', 'Kenji', 'Lena', 'Marco', 'Aisha', 'Diego',
+  'Nadia', 'Omar', 'Yuki', 'Tomas', 'Leila', 'Bayani',
+  'Chloe', 'Ivan', 'Malia', 'Ravi', 'Ingrid', 'Kwame',
 ];
 
 type Activity = 'look' | 'watch' | 'phone';
@@ -252,7 +333,8 @@ function wrapAngle(a: number): number {
 
 export class Npc {
   readonly group = new THREE.Group();
-  readonly name: string;
+  /** Call-sign shown in chat; spawners may reassign it so a crowd has no twins. */
+  name: string;
   private rig: BuiltAvatar;
   private anim: AvatarAnimator;
   private x: number;
@@ -270,6 +352,11 @@ export class Npc {
   private emoteName: EmoteName | null = null;
   private emoteTtl = 0;
   private emoteSprite: THREE.Sprite | null = null;
+  private convo: Conversation | null = null;
+  private chatWait: number;
+  private chatSprite: THREE.Sprite | null = null;
+  private chatShown = -1;
+  private topics: string[][];
   // Personality: everyone moves a little differently.
   private walkSpeed: number;
   private fleeSpeed: number;
@@ -285,6 +372,8 @@ export class Npc {
   constructor(seed: number, startX: number, startZ: number, swim = false, opts?: AvatarOptions, spaceSuit = false) {
     this.rnd = mulberry(seed);
     this.swim = swim;
+    this.topics = spaceSuit ? SMALL_TALK.space : swim ? SMALL_TALK.water : SMALL_TALK.ground;
+    this.chatWait = 2 + this.rnd() * 6;
     this.x = startX; this.z = startZ;
     this.tx = startX; this.tz = startZ;
     this.phase = this.rnd() * Math.PI * 2;
@@ -319,10 +408,111 @@ export class Npc {
   /** True while running from the hazard. */
   get isFleeing(): boolean { return this.fleeing; }
 
+  /** Name of the bystander this one is chatting with, else null. */
+  get chattingWith(): string | null {
+    if (!this.convo) return null;
+    return (this.convo.a === this ? this.convo.b : this.convo.a).name;
+  }
+
+  /** Line this bystander is saying right now, else null (test hook). */
+  get saying(): string | null {
+    const c = this.convo;
+    if (!c) return null;
+    const speaker = c.idx % 2 === 0 ? c.a : c.b;
+    return speaker === this ? c.lines[c.idx] ?? null : null;
+  }
+
+  private endChat(): void {
+    const c = this.convo;
+    if (!c) return;
+    for (const n of [c.a, c.b]) {
+      n.convo = null;
+      n.chatShown = -1;
+      n.chatWait = CHAT_WAIT_MIN + n.rnd() * 25;
+      if (n.chatSprite) n.chatSprite.visible = false;
+    }
+  }
+
+  /** Free to start a conversation right now? */
+  private chatReady(): boolean {
+    if (this.convo || this.fleeing || this.chatWait > 0 || !this.group.visible) return false;
+    // A greeting to the visitor in progress comes first.
+    return this.emoteTtl <= 0 && this.noticePending < 0;
+  }
+
+  private tryStartChat(dt: number, neighbors: readonly Npc[]): void {
+    if (!this.chatReady() || this.rnd() > dt * 0.8) return;
+    for (const n of neighbors) {
+      if (n === this || !n.chatReady()) continue;
+      if (Math.hypot(n.x - this.x, n.z - this.z) > CHAT_RADIUS) continue;
+      const lines = this.topics[Math.floor(this.rnd() * this.topics.length)];
+      const c: Conversation = { a: this, b: n, lines, idx: 0, t: 0 };
+      this.convo = c; n.convo = c;
+      return;
+    }
+  }
+
+  /** Stand, face the partner, show our line when it's our turn. False if the chat ended. */
+  private updateChat(dt: number, t: number): boolean {
+    const c = this.convo;
+    if (!c) return false;
+    const other = c.a === this ? c.b : c.a;
+    if (!other.group.visible || other.convo !== c || other.fleeing) { this.endChat(); return false; }
+    if (c.a === this) {
+      c.t += dt;
+      if (c.t > CHAT_LINE_S) { c.t = 0; c.idx++; }
+      if (c.idx >= c.lines.length) { this.endChat(); return false; }
+    }
+    // Turn to face the partner.
+    this.speed = 0;
+    const want = Math.atan2(other.x - this.x, other.z - this.z);
+    this.yaw += wrapAngle(want - this.yaw) * Math.min(1, dt * 5);
+    this.anim.update({ dt, t, speed: 0, swim: this.swim, lookYaw: 0, lookPitch: -0.05 });
+    const y = this.swim ? 2.2 + Math.sin(t * 1.1 + this.phase * 0.1) * 0.3 : 0;
+    this.group.position.set(this.x, y, this.z);
+    this.group.rotation.y = this.yaw;
+    // Bubble over whoever is speaking; a small hand gesture while talking.
+    const speaking = (c.idx % 2 === 0 ? c.a : c.b) === this;
+    if (speaking) {
+      if (this.chatShown !== c.idx) {
+        this.chatShown = c.idx;
+        const { tex, aspect } = lineTexture(c.lines[c.idx]);
+        const sp = this.ensureChatSprite();
+        const mat = sp.material as THREE.SpriteMaterial;
+        mat.map = tex;
+        mat.needsUpdate = true;
+        sp.scale.set(2.1 * aspect, 2.1, 1);
+        sp.visible = true;
+      }
+      const k = Math.min(1, c.t / 0.15) * Math.min(1, (CHAT_LINE_S - c.t) / 0.3);
+      if (this.chatSprite) (this.chatSprite.material as THREE.SpriteMaterial).opacity = c.a === this ? k : 1;
+      if (!this.swim) {
+        const r = this.rig;
+        r.armR.rotation.x = -0.9 + Math.sin(t * 5 + this.phase) * 0.25;
+        r.foreR.rotation.x = -1.1;
+      }
+    } else if (this.chatSprite) {
+      this.chatSprite.visible = false;
+      this.chatShown = -1;
+    }
+    return true;
+  }
+
+  private ensureChatSprite(): THREE.Sprite {
+    if (this.chatSprite) return this.chatSprite;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+    s.position.set(0, 7.8, 0);
+    s.visible = false;
+    this.group.add(s);
+    this.chatSprite = s;
+    return s;
+  }
+
   /** Stop and turn to face a point — used while the visitor is chatting. */
   faceToward(x: number, z: number, dt = 1 / 60, t = performance.now() / 1000): void {
     this.speed = 0;
     this.cancelEmote();
+    this.endChat();
     const dy = wrapAngle(Math.atan2(x - this.x, z - this.z) - this.yaw);
     this.yaw += dy * Math.min(1, dt * 8);
     this.group.rotation.y = this.yaw;
@@ -340,6 +530,7 @@ export class Npc {
     this.pause = 0;
     this.fleeing = false;
     this.cancelEmote();
+    this.endChat();
     this.noticeCooldown = 3 + this.rnd() * 5;
     this.yaw = Math.random() * Math.PI * 2;
     this.group.position.set(x, this.swim ? 2.2 : 0, z);
@@ -460,6 +651,11 @@ export class Npc {
     if (tdist < this.fleeRadius && tdist > 1e-3) this.fleeing = true;
     else if (tdist > this.fleeRadius + CALM_MARGIN) this.fleeing = false;
     const fleeing = this.fleeing && tdist > 1e-3;
+    if (this.chatWait > 0) this.chatWait -= dt;
+    if (fleeing && this.convo) this.endChat();
+    if (this.convo && this.updateChat(dt, t)) return;
+    if (!fleeing && neighbors) this.tryStartChat(dt, neighbors);
+    if (this.convo && this.updateChat(dt, t)) return;
     this.updateEmoteState(dt, player, fleeing);
 
     let wantX = 0; let wantZ = 0; let targetSpeed = 0;
@@ -505,10 +701,18 @@ export class Npc {
       }
       if (this.retarget <= 0 && this.pause <= 0) {
         this.retarget = 6 + this.rnd() * 8;
-        const a = this.rnd() * Math.PI * 2;
-        const r = 40 + this.rnd() * (half - 60);
-        this.tx = Math.cos(a) * r;
-        this.tz = Math.sin(a) * r;
+        // Sometimes stroll over to another bystander for a chat.
+        const others = neighbors?.filter((n) => n !== this && n.group.visible && !n.fleeing) ?? [];
+        if (others.length && this.chatWait <= 4 && this.rnd() < 0.65) {
+          const n = others[Math.floor(this.rnd() * others.length)];
+          this.tx = n.x + (this.rnd() - 0.5) * 6;
+          this.tz = n.z + (this.rnd() - 0.5) * 6;
+        } else {
+          const a = this.rnd() * Math.PI * 2;
+          const r = 40 + this.rnd() * (half - 60);
+          this.tx = Math.cos(a) * r;
+          this.tz = Math.sin(a) * r;
+        }
       }
       if (this.pause > 0) {
         if (this.activity === 'watch' && tdist < WATCH_RADIUS) {

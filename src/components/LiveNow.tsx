@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { DataArt } from './DataArt';
 import { Icon } from './Icon';
+import { HelpTip } from './HelpTip';
 import type { IconName } from './Icon';
 import { latestReading } from '../lib/dataUtils';
 import { POWER_LIVE_NOW, POWER_LIVE_VARS, fetchPowerNow } from '../lib/nasa';
@@ -166,13 +167,12 @@ export function LiveSnapshot({ lat, lon, place, disabled, onAdopt }: {
 
   return (
     <section className="card" aria-label="All live NASA POWER variables for this location">
-      <p style={{ color: 'var(--ink-dim)', fontSize: '.9rem', margin: '0 0 4px' }}>
-        Read every variable NASA POWER publishes for this point at once — temperature, humidity, wind,
-        pressure and precipitation — then drop any of them straight into the Listen console below.
-        Hourly products end at NASA's newest published hour; precipitation is a daily product.
-      </p>
       <div className="row">
         <span className="livenow__place">{place}</span>
+        <HelpTip label="all readings">
+          Every NASA reading for this place at once. Tap one to hear it. NASA publishes these within about a week, so
+          the newest value is not this exact second.
+        </HelpTip>
         <button className="btn primary" onClick={() => void run()} disabled={busy || disabled}>
           {busy ? 'Reading every variable…' : <><Icon name="activity" /> Read everything live</>}
         </button>
@@ -207,13 +207,6 @@ export function LiveSnapshot({ lat, lon, place, disabled, onAdopt }: {
             );
           })}
         </div>
-      )}
-      {tiles && (
-        <p className="callout" style={{ margin: 0 }}>
-          <b>Every tile is a real dataset.</b> NASA POWER analyses reach real time within about a week, so the
-          newest frame here is the latest hour or day NASA has published for this point — not a sensor
-          streaming this exact second.
-        </p>
       )}
     </section>
   );

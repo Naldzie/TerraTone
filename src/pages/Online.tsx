@@ -3,6 +3,7 @@ import { ApodPanel } from '../components/ApodPanel';
 import { EonetPanel } from '../components/EonetPanel';
 import { EpicPanel } from '../components/EpicPanel';
 import { Icon } from '../components/Icon';
+import { HelpTip } from '../components/HelpTip';
 import { LiveReadout, LiveSnapshot, VAR_ICON } from '../components/LiveNow';
 import { PlacePickerMap } from '../components/PlacePickerMap';
 import { Listen } from './Listen';
@@ -171,25 +172,23 @@ export function Online() {
   return (
     <div>
       <div className="hero">
-        <h1>Live from <span className="accent">NASA</span></h1>
-        <p>
-          Real-time public feeds — plus a NASA POWER console: read the newest published temperature, humidity,
-          wind, pressure or rainfall for any point on Earth <b>right now</b>, watch it change, and hear it in
-          the full Listen experience.{' '}
-          {offline
-            ? 'You are offline — showing last cached copies below.'
-            : 'Events link straight into the matching training simulator.'}
-        </p>
+        <h1>Live from <span className="accent">NASA</span>{' '}
+          <HelpTip label="the Live tab">
+            Real NASA data from today: weather for any place, natural events on a map, and Earth and space photos.
+            Tap an event to open its simulator.
+          </HelpTip>
+        </h1>
+        {offline && <p>You are offline. Showing saved copies.</p>}
       </div>
 
-      <div className="section-title"><h2>Hear the latest conditions</h2><span>NASA POWER · keyless</span></div>
+      <div className="section-title">
+        <h2>Hear the latest conditions{' '}
+          <HelpTip label="latest conditions">
+            Pick a city or drop a pin, choose what to measure, and play NASA's newest readings for that spot.
+          </HelpTip>
+        </h2>
+      </div>
       <div className="card">
-        <p style={{ color: 'var(--ink-dim)', fontSize: '.9rem', margin: '0 0 4px' }}>
-          Pick a place and a variable — choose a city, <b>drop a pin on the map</b>, or use My location; no
-          latitude or longitude typing needed. TerraTone pulls the newest hours or days NASA POWER has published
-          for that point (the analysis reaches real time within about a week) and loads it into the Listen
-          experience below, ready to play. Precipitation is daily-only; everything else offers hourly windows.
-        </p>
         <div className="row">
           <div className="field" style={{ flex: '1 1 240px' }}>
             <label htmlFor="place">Place</label>
@@ -269,7 +268,6 @@ export function Online() {
             <div className="stat"><span>Frames</span><b>{stats.frames}</b></div>
           </div>
         )}
-        {stats && <p className="hint">Press Play below — in Forwards mode the final frame is the newest published reading; silence marks hours POWER has not released yet.</p>}
       </div>
 
       <div className="section-title">
