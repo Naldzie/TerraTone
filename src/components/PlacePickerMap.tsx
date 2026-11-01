@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import '../lib/leafletIcon';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const clampLat = (n: number) => round2(Math.max(-90, Math.min(90, n)));
