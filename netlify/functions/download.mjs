@@ -36,8 +36,8 @@ export default async (req) => {
       headers: {
         ...cors(req),
         Location: `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`,
-        // Short cache: a fresh upload shows up within a few minutes.
-        'Netlify-CDN-Cache-Control': 'public, max-age=300',
+        // Never cache: a re-upload (new Drive ID) must work on the very next click.
+        'Netlify-CDN-Cache-Control': 'no-store',
         'Cache-Control': 'no-store',
       },
     });
