@@ -53,6 +53,11 @@ function prefersNarrowViewport(): boolean {
   }
 }
 
+/** Lite visual mode (phones / the mobile app, set in main.tsx): no WebGL Earth. */
+function liteVisuals(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.dataset.lite === 'true';
+}
+
 function seededStarfield(count: number): { x: number; y: number; r: number; o: number; d: number }[] {
   let seed = 20260211;
   const random = () => {
@@ -167,6 +172,7 @@ export function CinematicIntro({
   ));
   const [muted, setMuted] = useState(mutedRef.current);
   const [smallScreen] = useState(prefersNarrowViewport);
+  const [lite] = useState(liteVisuals);
 
   const setSoundMuted = useCallback((next: boolean) => {
     mutedRef.current = next;
@@ -377,7 +383,7 @@ export function CinematicIntro({
             <div className="intro__planet-clouds" />
             <div className="intro__planet-shade" />
           </div>
-          {!reduceMotion && (
+          {!reduceMotion && !lite && (
             <Suspense fallback={null}>
               <ThreeBoundary onError={handleBoundaryError}>
                 <IntroEarth
