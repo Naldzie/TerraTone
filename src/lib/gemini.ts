@@ -5,7 +5,7 @@
  * from the models list (no hardcoded model name to go stale).
  * Docs: https://ai.google.dev/gemini-api/docs
  */
-import { getGeminiKey } from './keys';
+import { apiProxy, getGeminiKey } from './keys';
 
 export interface DatasetBrief {
   title: string;
@@ -100,6 +100,7 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
     }
     if (res.status === 429) throw new AiHttpError(429, 'AI quota exceeded. Wait a bit and retry.');
     if (res.status === 404) throw new AiHttpError(404, 'That AI model ID is gone (HTTP 404).');
+    if (res.status === 503) throw new AiHttpError(503, 'The AI model is overloaded right now (HTTP 503). Retry in a moment.');
     if (!res.ok) throw new AiHttpError(res.status, `AI service error (HTTP ${res.status}). Retry later.`);
     return (await res.json()) as unknown;
   } catch (e) {
@@ -110,8 +111,15 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   }
 }
 
+/** Gemini REST URL: direct with the visitor's own key, else via the site's proxy. */
+function geminiUrl(path: string, key: string): string {
+  return key
+    ? `https://generativelanguage.googleapis.com/v1beta/${path}?key=${encodeURIComponent(key)}`
+    : `${apiProxy()}/gemini/${path}`;
+}
+
 async function listModels(key: string): Promise<string[]> {
-  const list = (await fetchJson(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`)) as { models?: ModelEntry[] };
+  const list = (await fetchJson(geminiUrl('models', key))) as { models?: ModelEntry[] };
   const ranked = rankModels(list.models ?? []);
   if (ranked.length === 0) throw new Error('No text-capable Gemini model is available for this key.');
   return ranked;
@@ -125,15 +133,16 @@ export async function explainWithGemini(brief: DatasetBrief): Promise<string> {
 /** Generic grounded completion (NPC guides, etc.). Requires a stored key + network. */
 export async function generateText(prompt: string, maxTokens = 400, temperature = 0.5): Promise<string> {
   const key = getGeminiKey();
-  if (!key) throw new Error('No Gemini key saved. Add one in Settings → API keys first.');
+  if (!key && !apiProxy()) throw new Error('No Gemini key saved. Add one in Settings → API keys first.');
   if (!cachedModels) cachedModels = await listModels(key);
   const tried: string[] = [];
-  // Walk the ranked list: a 404 means that model ID retired — try the next.
-  // Anything else (key, quota, network) aborts immediately.
+  let busy = false;
+  // Walk the ranked list: a 404 means that model ID retired, a 503 that it is
+  // overloaded — try the next. Anything else (key, quota, network) aborts.
   for (const model of cachedModels) {
     tried.push(model);
     try {
-      const body = await fetchJson(`https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+      const body = await fetchJson(geminiUrl(`${model}:generateContent`, key), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -145,9 +154,11 @@ export async function generateText(prompt: string, maxTokens = 400, temperature 
       return extractText(body);
     } catch (e) {
       if (e instanceof AiHttpError && e.status === 404) continue;
+      if (e instanceof AiHttpError && e.status === 503) { busy = true; continue; }
       throw e;
     }
   }
+  if (busy) throw new Error('The AI models are busy right now (high demand). Please try again in a moment.');
   // Every known ID 404'd — the list is stale. Forget it so the next retry refetches.
   cachedModels = null;
   throw new Error(`All known AI models answered 404 (retired IDs?). Tried: ${tried.join(', ') || 'none'}. Wait a moment and retry — the model list refreshes automatically.`);

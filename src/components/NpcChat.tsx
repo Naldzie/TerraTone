@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GUIDES, buildGuidePrompt, guideSources } from '../lib/nasaGuide';
 import type { ChatTurn, GuideTopic } from '../lib/nasaGuide';
 import { generateText } from '../lib/gemini';
-import { getGeminiKey } from '../lib/keys';
+import { hasGeminiAccess } from '../lib/keys';
 import { speakText, stopSpeaking, ttsAvailable } from '../lib/tts';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
@@ -97,7 +97,7 @@ export function useNpcChat(npcName: string, topic: GuideTopic, simContext: strin
 
   return {
     npcName, topic, guide: GUIDES[topic], history, draft, setDraft, busy, err,
-    offline, hasKey: Boolean(getGeminiKey()), voiceOn, toggleVoice,
+    offline, hasKey: Boolean(hasGeminiAccess()), voiceOn, toggleVoice,
     goSettings: () => setTab('settings'), speak, ask,
   };
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { explainWithGemini } from '../lib/gemini';
 import type { DatasetBrief } from '../lib/gemini';
-import { getGeminiKey } from '../lib/keys';
+import { hasGeminiAccess } from '../lib/keys';
 import { speakText, stopSpeaking, ttsAvailable } from '../lib/tts';
 import { useApp } from '../store/AppContext';
 import { Icon } from './Icon';
@@ -84,7 +84,7 @@ export function AiExplain({ brief }: { brief: DatasetBrief }) {
             {voiceOn ? <><Icon name="volume-on" /> Voice on</> : <><Icon name="volume-off" /> Voice off</>}
           </button>
         )}
-        {!getGeminiKey() && (
+        {!hasGeminiAccess() && (
           <button className="btn sm ghost" onClick={() => setTab('settings')}><Icon name="key" /> Add Gemini key first</button>
         )}
       </div>

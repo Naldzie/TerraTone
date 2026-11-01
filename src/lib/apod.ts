@@ -2,7 +2,7 @@
  * Docs: https://api.nasa.gov — labeled clearly as astronomy, not Earth data.
  */
 import { db } from './db';
-import { getNasaKey } from './keys';
+import { apiProxy, getNasaKey } from './keys';
 import { DEMO_KEY } from './epic';
 
 export interface Apod {
@@ -37,12 +37,14 @@ export function parseApod(json: unknown): Apod {
 /** Today's APOD (cached for offline viewing). Throws human-readable errors. */
 export async function fetchApod(): Promise<{ apod: Apod; usedDemoKey: boolean }> {
   const key = getNasaKey();
-  const usedDemoKey = key.length === 0;
+  // No own key: the site's proxy (owner's key) if there is one, else DEMO_KEY.
+  const proxy = key ? '' : apiProxy();
+  const usedDemoKey = !key && !proxy;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 20000);
   try {
     const res = await fetch(
-      `https://api.nasa.gov/planetary/apod?api_key=${encodeURIComponent(usedDemoKey ? DEMO_KEY : key)}`,
+      proxy ? `${proxy}/apod` : `https://api.nasa.gov/planetary/apod?api_key=${encodeURIComponent(usedDemoKey ? DEMO_KEY : key)}`,
       { signal: ctrl.signal, headers: { Accept: 'application/json' } },
     );
     if (res.status === 403 || res.status === 429) {

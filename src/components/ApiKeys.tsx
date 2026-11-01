@@ -5,6 +5,7 @@ import { Icon } from './Icon';
 const SOURCE_LABEL: Record<string, string> = {
   device: 'saved on this device',
   env: 'provided by the app build',
+  server: 'provided by this website',
   none: 'not set',
 };
 

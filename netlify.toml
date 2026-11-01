@@ -1,0 +1,28 @@
+# Netlify deploy for the TerraTone web app.
+#
+# The owner's API keys are NOT in this repo. Add them in the Netlify UI
+# (Site configuration → Environment variables), without a VITE_ prefix so they
+# stay server-side and are only read by the functions in netlify/functions:
+#   GEMINI_API_KEY   NPC chat + AI explanations for every visitor
+#   NASA_API_KEY     APOD space photo (falls back to DEMO_KEY)
+# Visitors who save their own keys in Settings → API keys use those instead.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+  # The app calls these key-holding proxies when a visitor has no own key.
+  VITE_API_PROXY = "/api"
+  # Download buttons → installers attached to the latest GitHub release.
+  VITE_GITHUB_REPO = "Naldzie/TerraTone"
+
+[functions]
+  directory = "netlify/functions"
+
+# The service worker must always be re-checked, or visitors keep an old app.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
