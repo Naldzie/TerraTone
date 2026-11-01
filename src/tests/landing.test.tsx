@@ -174,6 +174,17 @@ describe('LaunchLanding', () => {
     );
   });
 
+  it('downloads through the site lookup function on hosted builds', async () => {
+    vi.stubEnv('VITE_API_PROXY', '/api');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    render(<LaunchLanding onProceed={() => undefined} />);
+    goTo('Download');
+    fireEvent.click(screen.getByRole('button', { name: /download for windows/i }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.getAttribute('href')).toBe('/api/download/windows');
+  });
+
   it('falls back to the stable GitHub release asset', async () => {
     vi.stubEnv('VITE_GITHUB_REPO', 'example/terratone');
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);

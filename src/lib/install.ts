@@ -1,3 +1,5 @@
+import { apiProxy } from './keys';
+
 export type InstallPlatform = 'windows' | 'phone' | 'mac' | 'other';
 
 export interface BeforeInstallPromptEvent extends Event {
@@ -69,17 +71,24 @@ const RELEASE_ASSETS: Record<Exclude<InstallPlatform, 'other'>, string> = {
 };
 
 /**
- * The published installers, shared from the owner's Google Drive (GitHub can't
- * host the 120 MB Windows installer through its web upload). drive.usercontent
- * with confirm=t skips Drive's preview and virus-scan pages, so the click saves
- * the file straight away. Replace a file in Drive with "Manage versions" to
- * keep its ID. Build-time VITE_INSTALLER_* values still win over these.
+ * The published installers live in the owner's Google Drive folder (GitHub
+ * can't take the 120 MB Windows installer through its web upload). Hosted
+ * builds go through the site's /api/download/<platform> function, which looks
+ * the file up by name, so a re-upload (new Drive ID) never breaks a button.
+ * Builds without the site's API fall back to these direct links (confirm=t
+ * skips Drive's preview and virus-scan pages). VITE_INSTALLER_* still wins.
  */
 const DRIVE = (id: string) => `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
-export const HOSTED_INSTALLERS: Partial<Record<Exclude<InstallPlatform, 'other'>, string>> = {
-  windows: DRIVE('1R3ib7MF40H9JKNJuHxCE1EFCK81xe8Kc'),
-  phone: DRIVE('1TTju_Si1JLo5EfuTCOo4R8vLCpyBlWwn'),
+const DRIVE_IDS: Partial<Record<Exclude<InstallPlatform, 'other'>, string>> = {
+  windows: '1VZhH0AAL5CdDmxLUtcgqFtQqwdScHiJp',
+  phone: '1LVbv3fad70K-4YZJldSNTGTHxYU8dren',
 };
+function hostedInstaller(platform: Exclude<InstallPlatform, 'other'>): string | null {
+  const id = DRIVE_IDS[platform];
+  if (!id) return null;
+  const api = apiProxy();
+  return api ? `${api}/download/${platform}` : DRIVE(id);
+}
 
 function envValue(key: string): string | null {
   const env = import.meta.env as unknown as Record<string, string | undefined>;
@@ -104,7 +113,7 @@ export function installerUrl(platform: InstallPlatform): string | null {
   const key = platform === 'windows' ? 'VITE_INSTALLER_WINDOWS'
     : platform === 'mac' ? 'VITE_INSTALLER_MAC'
     : 'VITE_INSTALLER_PHONE';
-  return envValue(key) ?? HOSTED_INSTALLERS[platform] ?? releaseUrl(RELEASE_ASSETS[platform]);
+  return envValue(key) ?? hostedInstaller(platform) ?? releaseUrl(RELEASE_ASSETS[platform]);
 }
 
 /**
@@ -121,6 +130,8 @@ export async function installerAvailable(url: string): Promise<boolean> {
     return false;
   }
   if (target.origin !== window.location.origin) return true;
+  // The site's download function redirects to Drive; it can't be probed same-origin.
+  if (target.pathname.startsWith('/api/download/')) return true;
   try {
     const res = await fetch(target.href, { method: 'HEAD', cache: 'no-store' });
     const type = res.headers.get('content-type') ?? '';
