@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(TerraToneTtsPlugin.class);
+        registerPlugin(TerraToneScreenPlugin.class);
         super.onCreate(savedInstanceState);
 
         // TerraTone switches pages inside one web view, so the system Back
@@ -22,6 +23,11 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void handleOnBackPressed() {
                 WebView web = getBridge() != null ? getBridge().getWebView() : null;
+                // In a fullscreen simulator, Back just leaves fullscreen.
+                if (web != null && TerraToneScreenPlugin.fullscreen) {
+                    web.evaluateJavascript("window.dispatchEvent(new Event('tt-native-back'))", null);
+                    return;
+                }
                 if (web != null && web.canGoBack()) {
                     web.goBack();
                     return;

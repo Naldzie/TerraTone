@@ -71,7 +71,14 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const { ref: wrapRef, active: fullscreen, toggle: toggleFullscreen } = useFullscreenLandscape<HTMLDivElement>();
+  const { ref: wrapRef, active: fullscreen, toggle: toggleFullscreen, enter: enterFullscreen } = useFullscreenLandscape<HTMLDivElement>();
+  // Pressing Play (the overlay or the page's Play button) goes straight to
+  // fullscreen — landscape on phones and in the app.
+  const wasOverlay = useRef(startOverlay);
+  useEffect(() => {
+    if (wasOverlay.current && !startOverlay) void enterFullscreen();
+    wasOverlay.current = startOverlay;
+  }, [startOverlay, enterFullscreen]);
   // Mouse: captured on Play / a click into the scene, then every movement looks
   // (cursor hidden; Esc frees it). Uncaptured, hovering still looks. Touch: drag.
   const mouseLocked = useMouseLook(canvasRef, (dx, dy) => simRef.current?.addCameraOrbit(dx, dy), !paused && !settingsOpen && !startOverlay && !helpOpen);
