@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { GuidedTour } from './GuidedTour';
+import { TOURS } from '../lib/tours';
 import {
   detectInstallPlatform,
   installerAvailable,
@@ -36,14 +38,11 @@ const PLATFORMS: { id: InstallPlatform; label: string; detail: string; action: s
   { id: 'mac', label: 'Mac', detail: 'macOS · Desktop app', action: 'Download for Mac' },
 ];
 
-/* The team, with the avatar each member chose (public/icons/pic1–6.jpg). */
+/* The team, with the avatar each member chose (public/icons/pic*.jpg). */
 const TEAM: { name: string; role: string; photo: string }[] = [
   { name: 'Ronald Francis Andalis', role: 'Team lead', photo: '/icons/pic1.jpg' },
-  { name: 'Sherwin Ashton Gascon Babol', role: 'Team member', photo: '/icons/pic2.jpg' },
-  { name: 'Ervic Jay Fragata', role: 'Team member', photo: '/icons/pic3.jpg' },
   { name: 'Tristan Kier Ferrer Villacrucis', role: 'Team member', photo: '/icons/pic4.jpg' },
   { name: 'Marysol Ayen Largo', role: 'Team member', photo: '/icons/pic5.jpg' },
-  { name: 'Daniela Abegail V. Bolongaita', role: 'Team member', photo: '/icons/pic6.jpg' },
 ];
 
 /** Current release (from package.json); a fallback keeps tests and odd builds working. */
@@ -245,6 +244,7 @@ export function LaunchLanding({ onProceed, nativeShell = false, active = true }:
   const [dialogPlatform, setDialogPlatform] = useState<InstallPlatform | null>(null);
   const [status, setStatus] = useState('');
   const [stats, setStats] = useState<LandingStats>(() => readStats());
+  const [touring, setTouring] = useState(false);
   const proceedRef = useRef<HTMLButtonElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -376,6 +376,18 @@ export function LaunchLanding({ onProceed, nativeShell = false, active = true }:
             </button>
           ))}
         </nav>
+        <button
+          type="button"
+          className="landing__guide"
+          onClick={() => { setPage('welcome'); setStatus(''); setTouring(true); }}
+          aria-label="Guide: take a tour of the landing page"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8M12 17h.01" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          Guide
+        </button>
       </header>
 
       <main className="landing__main">
@@ -596,6 +608,14 @@ export function LaunchLanding({ onProceed, nativeShell = false, active = true }:
         <span>TerraTone / 2026</span>
       </footer>
 
+      {touring && active && (
+        <GuidedTour
+          steps={TOURS.landing.steps}
+          label="Landing page tour"
+          reduceMotion={typeof document !== 'undefined' && document.documentElement.dataset.motion === 'reduced'}
+          onClose={() => setTouring(false)}
+        />
+      )}
       {dialogPlatform && <InstallDialog platform={dialogPlatform} onClose={() => setDialogPlatform(null)} />}
     </div>
   );

@@ -249,6 +249,20 @@ const ICONS = {
       <path d="M20 12H4M11 5l-7 7 7 7" />
     </>
   ),
+  home: (
+    <>
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 9.5V20h13V9.5" />
+      <path d="M10 20v-5.5h4V20" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.8" />
+      <path d="M12 17h.01" />
+    </>
+  ),
   message: (
     <>
       <path d="M4 5h16v11H9l-5 4V5Z" />

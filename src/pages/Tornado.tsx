@@ -12,6 +12,7 @@ import type { StormParams, StormPresetId } from '../sim/stormTypes';
 import type { SimQuality, SimSnapshot } from '../sim/TornadoScene';
 import { useApp } from '../store/AppContext';
 import { Icon } from '../components/Icon';
+import { requestLanding } from '../lib/landingNav';
 import { BearingDial, GaugeBar } from '../components/Instruments';
 
 function fmtTime(s: number): string {
@@ -216,7 +217,10 @@ export function Tornado() {
 
   return (
     <div>
-      <button className="btn sm ghost" onClick={() => setTab('sims')} aria-label="Back to simulator library"><Icon name="arrow-left" /> All simulators</button>
+      <div className="row simnav" data-tour="sim-nav">
+        <button className="btn sm ghost" onClick={() => setTab('sims')} aria-label="Back to simulator library"><Icon name="arrow-left" /> All simulators</button>
+        <button className="btn sm ghost" onClick={requestLanding} aria-label="Home: back to the landing page"><Icon name="home" /> Home</button>
+      </div>
       <div className="hero" style={{ marginTop: 10 }}>
         <h1><Icon name="cyclone" /> Tornado <span className="accent">Simulator</span></h1>
         <p>

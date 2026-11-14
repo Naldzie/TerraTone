@@ -66,20 +66,22 @@ describe('LaunchLanding', () => {
     expect(screen.getByText(/visits by device/i)).toBeInTheDocument();
   });
 
-  it('introduces the project with six anime-style team profiles', () => {
+  it('introduces the project with three anime-style team profiles', () => {
     render(<LaunchLanding onProceed={() => undefined} />);
     goTo('About');
     expect(screen.getByText(/a local-first progressive web app/i)).toBeInTheDocument();
     const avatars = screen.getAllByRole('img', { name: /^avatar of /i });
-    expect(avatars).toHaveLength(6);
-    expect(avatars.map((img) => img.getAttribute('src'))).toEqual([1, 2, 3, 4, 5, 6].map((n) => `/icons/pic${n}.jpg`));
+    expect(avatars).toHaveLength(3);
+    expect(avatars.map((img) => img.getAttribute('src'))).toEqual([1, 4, 5].map((n) => `/icons/pic${n}.jpg`));
     for (const name of [
-      'Ronald Francis Andalis', 'Sherwin Ashton Gascon Babol', 'Ervic Jay Fragata',
-      'Tristan Kier Ferrer Villacrucis', 'Marysol Ayen Largo', 'Daniela Abegail V. Bolongaita',
+      'Ronald Francis Andalis', 'Tristan Kier Ferrer Villacrucis', 'Marysol Ayen Largo',
     ]) {
       expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     }
     expect(screen.getByText('Team lead')).toBeInTheDocument();
+    for (const removed of [/babol/i, /fragata/i, /bolongaita/i]) {
+      expect(screen.queryByText(removed)).not.toBeInTheDocument();
+    }
   });
 
   it('explains privacy in plain language', () => {

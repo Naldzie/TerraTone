@@ -10,6 +10,7 @@ import type { MinimapEvent } from './Minimap';
 import { SimSettingsOverlay } from './SimSettingsOverlay';
 import { SimAudioMonitor } from './AudioViz';
 import { Icon } from './Icon';
+import { requestLanding } from '../lib/landingNav';
 import type { IconName } from './Icon';
 import { useFullscreenLandscape } from '../lib/fullscreen';
 import { captureMouse, useMouseLook } from '../lib/mouseLook';
@@ -421,6 +422,9 @@ export function TornadoViewport({ storm, quality, reduceEffects, paused, onSnaps
             ><Icon name="message" /> {nearNpc ? nearNpc.name : 'Talk'}<Key k="T" /></button>
             <button className="btn sm ghost simhelp-btn" onClick={() => setHelpOpen(true)} aria-label="Show controls" aria-expanded={helpOpen}>
               ?<Key k="H" />
+            </button>
+            <button className="btn sm ghost simhome-btn" onClick={requestLanding} aria-label="Home: leave the simulator and go back to the landing page" title="Back to the landing page">
+              <Icon name="home" /> Home
             </button>
             {gyroAvail && (
               <button className="btn sm ghost" onClick={toggleGyro} aria-pressed={gyroOn}>

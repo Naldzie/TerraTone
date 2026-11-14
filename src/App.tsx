@@ -9,6 +9,10 @@ import { CinematicIntro } from './components/CinematicIntro';
 import { LaunchLanding } from './components/LaunchLanding';
 import { ProfileMenu } from './components/ProfileMenu';
 import { isNativeShell } from './lib/native';
+import { onLandingRequest, requestLanding } from './lib/landingNav';
+import { GuidedTour } from './components/GuidedTour';
+import { TOURS, dismissTourOffer, tourIdFor, tourOfferPending } from './lib/tours';
+import type { TourId } from './lib/tours';
 import { Explore } from './pages/Explore';
 import { Listen } from './pages/Listen';
 import { Library } from './pages/Library';
@@ -36,6 +40,7 @@ const TABS: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'online', label: 'Live', icon: 'broadcast' },
   { id: 'events', label: 'Events', icon: 'flame' },
   { id: 'sims', label: 'Sims', icon: 'gamepad' },
+  { id: 'studio', label: 'Studio', icon: 'music' },
   { id: 'library', label: 'Library', icon: 'database' },
   { id: 'access', label: 'Access', icon: 'accessibility' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
@@ -43,7 +48,7 @@ const TABS: { id: TabId; label: string; icon: IconName }[] = [
 
 const NAV_GROUPS: { label: string; tabs: TabId[] }[] = [
   { label: 'Main', tabs: ['explore', 'listen', 'online', 'events', 'sims'] },
-  { label: 'Your Music', tabs: ['library'] },
+  { label: 'Your Music', tabs: ['studio', 'library'] },
   { label: 'System', tabs: ['access', 'settings'] },
 ];
 
@@ -89,6 +94,15 @@ function LaunchGate() {
   /** A preview requested from Settings is not a launch: it must not consume
    *  the first-launch intro the user may still be waiting for. */
   const isPreview = useRef(false);
+  /** Bumped when the user goes back to the landing page, so the app below
+   *  remounts: simulators and players stop their sound instead of playing on. */
+  const [appKey, setAppKey] = useState(0);
+  const [tourOffer, setTourOffer] = useState(false);
+
+  useEffect(() => onLandingRequest(() => {
+    setAppKey((k) => k + 1);
+    setLanding(true);
+  }), []);
 
   const finishIntro = useCallback((_reason: IntroFinishReason) => {
     const preview = isPreview.current;
@@ -108,6 +122,7 @@ function LaunchGate() {
 
   const enterWebsite = useCallback(() => {
     setLanding(false);
+    if (tourOfferPending()) setTourOffer(true);
     window.setTimeout(() => {
       document.querySelector<HTMLElement>('#main')?.focus();
     }, 30);
@@ -140,7 +155,7 @@ function LaunchGate() {
         inert={blocked ? true : undefined}
         aria-hidden={blocked ? true : undefined}
       >
-        <Chrome />
+        <Chrome key={appKey} tourOffer={tourOffer && !blocked} onTourOfferDone={() => { dismissTourOffer(); setTourOffer(false); }} />
       </div>
       {launch && (
         <CinematicIntro
@@ -156,8 +171,28 @@ function LaunchGate() {
   );
 }
 
-function Chrome() {
-  const { tab, setTab, connection, profileOpen, setProfileOpen } = useApp();
+function TourOffer({ onStart, onDismiss }: { onStart: () => void; onDismiss: () => void }) {
+  return (
+    <div className="tour-offer" role="region" aria-label="Guided tour offer">
+      <span className="tour-offer__icon" aria-hidden="true"><Icon name="help" /></span>
+      <p><b>New to TerraTone?</b> Take a one-minute tour of this page. You can replay it any time with the Guide button.</p>
+      <div className="tour-offer__actions">
+        <button type="button" className="btn sm primary" onClick={onStart}>Start tour</button>
+        <button type="button" className="btn sm ghost" onClick={onDismiss}>No thanks</button>
+      </div>
+    </div>
+  );
+}
+
+function Chrome({ tourOffer = false, onTourOfferDone }: { tourOffer?: boolean; onTourOfferDone?: () => void }) {
+  const { tab, setTab, connection, profileOpen, setProfileOpen, settings } = useApp();
+  const [tour, setTour] = useState<TourId | null>(null);
+  const startTour = useCallback(() => {
+    setProfileOpen(false);
+    setTour(tourIdFor(tab));
+  }, [setProfileOpen, tab]);
+  // A tour belongs to one page: switching pages ends it.
+  useEffect(() => { setTour(null); }, [tab]);
   const label = connection === 'online' ? 'Online' : connection === 'cached' ? 'Using cached data' : 'Offline';
   useEffect(() => {
     const name = tab === 'storm' ? 'Storm'
@@ -190,17 +225,40 @@ function Chrome() {
             <span className="dot" aria-hidden="true" />
             {label}
           </span>
-          <button
-            type="button"
-            className="profilebtn"
-            aria-haspopup="dialog"
-            aria-expanded={profileOpen}
-            aria-label="Profile"
-            onClick={() => setProfileOpen(true)}
-          >
-            <Icon name="helmet" />
-            <span className="profilebtn__text">Profile</span>
-          </button>
+          <div className="topbar__tools">
+            <button
+              type="button"
+              className="profilebtn"
+              aria-haspopup="dialog"
+              aria-label="Guide: take a tour of this page"
+              title="Guided tour of this page"
+              onClick={startTour}
+            >
+              <Icon name="help" />
+              <span className="profilebtn__text">Guide</span>
+            </button>
+            <button
+              type="button"
+              className="profilebtn"
+              aria-label="Home: back to the landing page"
+              title="Back to the landing page"
+              onClick={requestLanding}
+            >
+              <Icon name="home" />
+              <span className="profilebtn__text">Home</span>
+            </button>
+            <button
+              type="button"
+              className="profilebtn"
+              aria-haspopup="dialog"
+              aria-expanded={profileOpen}
+              aria-label="Profile"
+              onClick={() => setProfileOpen(true)}
+            >
+              <Icon name="helmet" />
+              <span className="profilebtn__text">Profile</span>
+            </button>
+          </div>
         </header>
         <main className="main" id="main" tabIndex={-1}>
           {tab === 'explore' && <Explore />}
@@ -238,6 +296,21 @@ function Chrome() {
           ))}
         </nav>
         <ProfileMenu open={profileOpen} onClose={() => setProfileOpen(false)} />
+        {tourOffer && !tour && (
+          <TourOffer
+            onStart={() => { onTourOfferDone?.(); startTour(); }}
+            onDismiss={() => onTourOfferDone?.()}
+          />
+        )}
+        {tour && (
+          <GuidedTour
+            key={tour}
+            steps={TOURS[tour].steps}
+            label={`${TOURS[tour].label} tour`}
+            reduceMotion={settings.reduceMotion}
+            onClose={() => setTour(null)}
+          />
+        )}
       </div>
     </div>
   );

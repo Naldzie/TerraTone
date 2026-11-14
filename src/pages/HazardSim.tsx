@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SimViewport } from '../components/SimViewport';
 import { HazardAudioPanel } from '../components/HazardAudioPanel';
 import { Icon } from '../components/Icon';
+import { requestLanding } from '../lib/landingNav';
 import { Key } from '../components/SimChrome';
 import { SeismicPanel } from '../components/SeismicPanel';
 import { AmbienceEngine } from '../audio/ambience';
@@ -313,7 +314,10 @@ export function HazardSim({ hazardId, onBack }: { hazardId: HazardId; onBack: ()
 
   return (
     <div>
-      <button className="btn sm ghost" onClick={onBack} aria-label="Back to simulator library"><Icon name="arrow-left" /> All simulators</button>
+      <div className="row simnav" data-tour="sim-nav">
+        <button className="btn sm ghost" onClick={onBack} aria-label="Back to simulator library"><Icon name="arrow-left" /> All simulators</button>
+        <button className="btn sm ghost" onClick={requestLanding} aria-label="Home: back to the landing page"><Icon name="home" /> Home</button>
+      </div>
       <div className="hero" style={{ marginTop: 10 }}>
         <h1><Icon name={def.icon} /> {def.title.replace(' Simulator', '')} <span className="accent">Simulator</span></h1>
         <p>{def.blurb}</p>
