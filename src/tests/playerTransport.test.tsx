@@ -58,6 +58,7 @@ describe('Player transport', () => {
   it('stops at the end when repeat is switched off', () => {
     const onPlayingChange = vi.fn();
     render(<Player compact onPlayingChange={onPlayingChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sound settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Repeat on' }));
     fireEvent.click(screen.getByRole('button', { name: 'Play synchronized visualization and sound' }));
 
@@ -67,6 +68,7 @@ describe('Player transport', () => {
 
   it('plays backwards from the newest frame to the oldest', () => {
     render(<Player compact />);
+    fireEvent.click(screen.getByRole('button', { name: 'Sound settings' }));
     fireEvent.click(screen.getByRole('button', { name: 'Forwards' }));
     fireEvent.click(screen.getByRole('button', { name: 'Play synchronized visualization and sound' }));
     expect(frameLabel()).toContain(`frame ${total}/${total}`);

@@ -17,6 +17,7 @@ import type { DatasetMeta, FrameDateMode } from '../types';
 
 const POWER_BASE = (import.meta.env.VITE_POWER_BASE as string) || 'https://power.larc.nasa.gov/api';
 const GIBS_BASE = (import.meta.env.VITE_GIBS_BASE as string) || 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
+const CMR_BASE = ((import.meta.env.VITE_CMR_API_BASE as string) || 'https://cmr.earthdata.nasa.gov/search').replace(/\/+$/, '');
 
 export const EIC_URL = 'https://earth.gov/';
 export const POWER_DOCS = 'https://power.larc.nasa.gov/docs/';
@@ -216,7 +217,7 @@ export async function fetchPowerNow(
 /** Search NASA CMR for real dataset holdings (citations, not values). */
 export async function searchCmrCollections(keyword: string): Promise<{ title: string; id: string }[]> {
   const params = new URLSearchParams({ keyword, page_size: '8', pretty: 'true' });
-  const raw = (await fetchJson(`https://cmr.earthdata.nasa.gov/search/collections.json?${params.toString()}`)) as {
+  const raw = (await fetchJson(`${CMR_BASE}/collections.json?${params.toString()}`)) as {
     feed?: { entry?: { title?: string; id?: string }[] };
   };
   return (raw?.feed?.entry ?? []).map((e) => ({ title: e.title ?? 'Untitled collection', id: e.id ?? '' }));

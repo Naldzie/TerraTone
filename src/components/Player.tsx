@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { computeFrameSound, engine, imageSignature } from '../audio/engine';
 import { instrumentEngine, mapValueToMidi, midiToFreq, valueVelocity } from '../audio/instrumentEngine';
 import { getInstrument } from '../audio/instrumentProfiles';
@@ -23,16 +24,47 @@ const MusicViz3D = lazy(() => import('./MusicViz3D').then((m) => ({ default: m.M
  * Playback loops by default and can run forwards or backwards; this is the
  * single set of transport controls (the Sound profile card only shows state).
  */
-export function Player({ compact = false, onPlayingChange }: {
+export type PlayerView = '3d' | 'data' | 'audio';
+const VIEW_KEY = 'tt.playerView';
+const VIEWS: { id: PlayerView; label: string; icon: 'cube' | 'chart' | 'headphones'; hint: string }[] = [
+  { id: '3d', label: '3D', icon: 'cube', hint: '3D music view: note shards over a data landscape' },
+  { id: 'data', label: 'Data', icon: 'chart', hint: 'Normal data view: the chart and Earth imagery' },
+  { id: 'audio', label: 'Audio only', icon: 'headphones', hint: 'Just the sound, with a simple timeline' },
+];
+function readView(): PlayerView {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === '3d' || v === 'data' || v === 'audio') return v;
+  } catch { /* storage blocked */ }
+  return 'data';
+}
+
+export function Player({ compact = false, onPlayingChange, soundSettings }: {
   compact?: boolean;
   onPlayingChange?: (playing: boolean) => void;
+  /** Extra controls shown in the Sound settings popup (sound style, instrument). */
+  soundSettings?: ReactNode;
 }) {
   const { currentDataset: d, mapping, updateMapping, settings, saveExperience } = useApp();
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
-  const [audioOnly, setAudioOnly] = useState(false);
-  const [viz3d, setViz3d] = useState(!compact);
+  const [view, setViewState] = useState<PlayerView>(readView);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const audioOnly = view === 'audio';
+  const viz3d = view === '3d';
+  const setView = useCallback((v: PlayerView) => {
+    setViewState(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* not persisted */ }
+  }, []);
+  const settingsBtn = useRef<HTMLButtonElement>(null);
+  const closeSettings = useCallback(() => { setSettingsOpen(false); settingsBtn.current?.focus(); }, []);
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeSettings(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [settingsOpen, closeSettings]);
   const [loop, setLoop] = useState(true);
   const [backward, setBackward] = useState(false);
   const [captions, setCaptions] = useState<string[]>([]);
@@ -123,7 +155,7 @@ export function Player({ compact = false, onPlayingChange }: {
   }, [d, soundFrame, speakFrame]);
 
   const loadVisual = useCallback((i: number) => {
-    if (!d || !d.frameImage || audioOnly) {
+    if (!d || !d.frameImage || view !== 'data') {
       if (visualRef.current) visualRef.current.getContext('2d')?.clearRect(0, 0, 600, 190);
       frameImageMeta.current = null;
       setVisualMsg('');
@@ -170,7 +202,7 @@ export function Player({ compact = false, onPlayingChange }: {
       frameImageMeta.current = null;
     };
     image.src = url;
-  }, [d, frame, audioOnly]);
+  }, [d, view]);
 
   const play = useCallback(() => {
     if (!d || d.points.length === 0) return;
@@ -267,20 +299,41 @@ export function Player({ compact = false, onPlayingChange }: {
   if (!d) return <div className="empty">No dataset selected.</div>;
   const cur = d.points[Math.min(frame, d.points.length - 1)];
   const fi = d.frameImage;
-  const hasVisual = Boolean(fi) && !audioOnly;
+  const hasVisual = Boolean(fi) && view === 'data';
   const routeNote = useInstrumentVoice
     ? `${instrument.name} voices each frame`
     : hasVisual ? 'visual frame drives timbre' : 'chart only';
 
+  const toggleMute = () => { updateMapping({ muted: !mapping.muted }); engine.setMaster({ masterVolume: mapping.masterVolume, muted: !mapping.muted }); };
+  const last = Math.max(0, d.points.length - 1);
+  const viewPicker = (label: string, wide = false) => (
+    <div className={`viewpick${wide ? ' viewpick--wide' : ''}`} role="radiogroup" aria-label={label}>
+      {VIEWS.map((v) => (
+        <button key={v.id} type="button" role="radio" aria-checked={view === v.id} title={v.hint}
+          className={`viewpick__opt${view === v.id ? ' is-on' : ''}`} onClick={() => setView(v.id)}>
+          <Icon name={v.icon} /> <span>{v.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <section className="player" aria-label={`Player for ${d.title}`}>
-      {!audioOnly && <TimeChart dataset={d} frame={frame} onSeek={seek} />}
-      {!audioOnly && viz3d && (
+      <div className="playerbar">
+        {viewPicker('How to show the data')}
+        <button ref={settingsBtn} type="button" className="btn sm soundbtn" aria-haspopup="dialog" aria-expanded={settingsOpen}
+          onClick={() => setSettingsOpen(true)}>
+          <Icon name="sliders" /> <span>Sound settings</span>
+        </button>
+      </div>
+
+      {view === 'data' && <TimeChart dataset={d} frame={frame} onSeek={seek} />}
+      {viz3d && (
         <Suspense fallback={<div className="musicviz3d"><div className="musicviz-fallback">Loading 3D music view…</div></div>}>
           <MusicViz3D dataset={d} frame={frame} profileId={mapping.profileId} reduceMotion={settings.reduceMotion} playing={playing} />
         </Suspense>
       )}
-      {fi && !audioOnly && (
+      {fi && view === 'data' && (
         <div className="visual-frame" aria-label={`Earth visual frame ${frame + 1} of ${d.points.length}`}>
           <canvas ref={visualRef} className="visual" role="img"
             aria-label={`Satellite/Earth imagery frame ${frame + 1} for ${cur?.t ?? ''}`} style={{ height: 190 }} />
@@ -293,71 +346,103 @@ export function Player({ compact = false, onPlayingChange }: {
           )}
         </div>
       )}
+      {audioOnly && (
+        <div className={`audiocard${playing ? ' is-playing' : ''}`} aria-hidden="true">
+          <Icon name="headphones" />
+          <b>{!cur || cur.value === null ? 'silence' : `${cur.value} ${d.units}`}</b>
+          <span>{cur?.t}</span>
+        </div>
+      )}
+      {view !== 'data' && last > 0 && (
+        <input className="seekbar" type="range" min={0} max={last} step={1} value={Math.min(frame, last)}
+          aria-label="Timeline position" onChange={(e) => seek(Number(e.target.value))} />
+      )}
       <div className="timeline">
         <span aria-hidden="true"><Icon name="clock" /></span>
         <output aria-live="polite">
           {cur ? `${cur.t} · ${cur.value === null ? 'no data' : `${cur.value} ${d.units}`} · frame ${frame + 1}/${d.points.length}` : '—'}
         </output>
       </div>
-      <div className="legend" aria-label="Legend">
-        <span className="scalebar" aria-hidden="true" />
-        <span>Low {d.range[0]} → high {d.range[1]} {d.units} · red bands = missing data (silent) · {routeNote}</span>
-      </div>
+      {view === 'data' && (
+        <div className="legend" aria-label="Legend">
+          <span className="scalebar" aria-hidden="true" />
+          <span>Low {d.range[0]} → high {d.range[1]} {d.units} · red bands = missing data (silent) · {routeNote}</span>
+        </div>
+      )}
       <div className="transport" role="group" aria-label="Playback controls">
         {!playing
           ? <button className="btn primary" onClick={play} aria-label={frame > 0 ? 'Resume synchronized playback' : 'Play synchronized visualization and sound'}><Icon name="play" /> {frame > 0 ? 'Resume' : 'Play'}</button>
           : <button className="btn primary" onClick={pause} aria-label="Pause both visualization and audio"><Icon name="pause" /> Pause</button>}
-        <button className="btn" onClick={restart} aria-label="Restart from first frame"><Icon name="restart" /> Restart</button>
-        <button className="btn" onClick={stop} aria-label="Stop and rewind"><Icon name="stop" /> Stop</button>
-        <button className="btn ghost" onClick={preview} aria-label="Preview reference tone"><Icon name="bell" /> Tone preview</button>
+        <button className="btn" onClick={restart} aria-label="Restart from first frame" title="Restart"><Icon name="restart" /> <span className="btn-label">Restart</span></button>
+        <button className="btn" onClick={stop} aria-label="Stop and rewind" title="Stop"><Icon name="stop" /> <span className="btn-label">Stop</span></button>
+        <button className="btn ghost" onClick={toggleMute} aria-pressed={mapping.muted} aria-label={mapping.muted ? 'Unmute' : 'Mute'} title={mapping.muted ? 'Unmute' : 'Mute'}>
+          <Icon name={mapping.muted ? 'volume-off' : 'volume-on'} />
+        </button>
+        <span className="transport__chips" aria-hidden="true">
+          <span className="chip">{fps} fps</span>
+          {loop && <span className="chip">repeat</span>}
+          {backward && <span className="chip">backwards</span>}
+        </span>
       </div>
-      <div className="row">
-        <div className="field" style={{ flex: '1 1 140px' }}>
-          <label htmlFor="spd">Speed (frames/sec): {fps}</label>
-          <input id="spd" type="range" min={1} max={20} step={1} value={Math.round(fps)}
-            onChange={(e) => updateMapping({ speed: Number(e.target.value) })} />
+
+      <div className="soundpop" role="dialog" aria-modal="true" aria-label="Sound settings" hidden={!settingsOpen}
+        onClick={closeSettings}>
+        <div className="soundpop__card" onClick={(e) => e.stopPropagation()}>
+          <div className="soundpop__head">
+            <b><Icon name="sliders" /> Sound settings</b>
+            <button className="btn sm ghost" onClick={closeSettings} aria-label="Close sound settings"><Icon name="x" /></button>
+          </div>
+          <div className="soundpop__body">
+            <div className="soundpop__group">
+              <h4>View</h4>
+              {viewPicker('View in settings', true)}
+              <small className="soundpop__hint">{VIEWS.find((v) => v.id === view)?.hint}</small>
+            </div>
+            {soundSettings && <div className="soundpop__group">{soundSettings}</div>}
+            <div className="soundpop__group">
+              <h4>Playback</h4>
+              <div className="field">
+                <label htmlFor="spd">Speed: {fps} frames/sec</label>
+                <input id="spd" type="range" min={1} max={20} step={1} value={Math.round(fps)}
+                  onChange={(e) => updateMapping({ speed: Number(e.target.value) })} />
+              </div>
+              <div className="field">
+                <label htmlFor="vol">Master volume {mapping.muted ? '(muted)' : `${Math.round(mapping.masterVolume * 100)}%`}</label>
+                <input id="vol" type="range" min={0} max={1} step={0.05} value={mapping.masterVolume}
+                  onChange={(e) => { updateMapping({ masterVolume: Number(e.target.value) }); engine.setMaster({ masterVolume: Number(e.target.value), muted: mapping.muted }); }} />
+              </div>
+              <div className="soundpop__toggles">
+                <button className="btn sm ghost" onClick={() => setLoop((v) => !v)} aria-pressed={loop}
+                  title="When the timeline ends, start over automatically">
+                  <Icon name="restart" /> Repeat {loop ? 'on' : 'off'}
+                </button>
+                <button className="btn sm ghost" onClick={() => setBackward((v) => !v)} aria-pressed={backward}
+                  title="Play from the newest frame back to the oldest">
+                  <Icon name="play" style={backward ? { transform: 'scaleX(-1)' } : undefined} /> {backward ? 'Backwards' : 'Forwards'}
+                </button>
+                <button className="btn sm ghost" onClick={() => updateMapping({ spatialPan: !mapping.spatialPan })} aria-pressed={mapping.spatialPan} title="Pan sound left/right by longitude">
+                  <Icon name="headphones" /> Spatial pan {mapping.spatialPan ? 'on' : 'off'}
+                </button>
+                <button className="btn sm ghost" onClick={preview} aria-label="Preview reference tone"><Icon name="bell" /> Tone preview</button>
+              </div>
+            </div>
+          </div>
+          <div className="soundpop__foot">
+            <button className="btn primary" onClick={closeSettings}><Icon name="check" /> Done</button>
+          </div>
         </div>
-        <div className="field" style={{ flex: '1 1 140px' }}>
-          <label htmlFor="vol">Master volume {mapping.muted ? '(muted)' : ''}</label>
-          <input id="vol" type="range" min={0} max={1} step={0.05} value={mapping.masterVolume}
-            onChange={(e) => { updateMapping({ masterVolume: Number(e.target.value) }); engine.setMaster({ masterVolume: Number(e.target.value), muted: mapping.muted }); }} />
-        </div>
       </div>
-      <div className="row">
-        <button className="btn sm ghost" onClick={() => setLoop((v) => !v)} aria-pressed={loop}
-          title="When the timeline ends, start over automatically">
-          <Icon name="restart" /> Repeat {loop ? 'on' : 'off'}
-        </button>
-        <button className="btn sm ghost" onClick={() => setBackward((v) => !v)} aria-pressed={backward}
-          title="Play from the newest frame back to the oldest">
-          <Icon name="play" style={backward ? { transform: 'scaleX(-1)' } : undefined} /> {backward ? 'Backwards' : 'Forwards'}
-        </button>
-        <button className="btn sm ghost" onClick={() => { updateMapping({ muted: !mapping.muted }); engine.setMaster({ masterVolume: mapping.masterVolume, muted: !mapping.muted }); }} aria-pressed={mapping.muted}>
-          {mapping.muted ? <><Icon name="volume-off" /> Unmute</> : <><Icon name="volume-on" /> Mute</>}
-        </button>
-        <button className="btn sm ghost" onClick={() => updateMapping({ spatialPan: !mapping.spatialPan })} aria-pressed={mapping.spatialPan} title="Pan sound left/right by longitude">
-          <Icon name="headphones" /> Spatial pan {mapping.spatialPan ? 'on' : 'off'}
-        </button>
-        <button className="btn sm ghost" onClick={() => setViz3d((v) => !v)} aria-pressed={viz3d} title="Note shards, a playhead beacon and a 3D data landscape">
-          <Icon name="cube" /> 3D music view {viz3d ? 'on' : 'off'}
-        </button>
-        <button className="btn sm ghost" onClick={() => setAudioOnly((v) => !v)} aria-pressed={audioOnly}>
-          {audioOnly ? <><Icon name="eye" /> Show visuals</> : <><Icon name="volume-off" /> Audio-only mode</>}
-        </button>
-      </div>
+
       {!compact && (
         <>
-          <div>
-            <h3 style={{ margin: '4px 0' }}>Audio events &amp; captions</h3>
+          <details className="captionbox">
+            <summary>Captions &amp; text summary</summary>
             <ul className="captions" aria-live="polite" aria-label="Playback captions log">
               {captions.length === 0 && <li>Press Play — every frame is captioned here as text.</li>}
               {captions.map((c, i) => <li key={i}>{c}</li>)}
             </ul>
-          </div>
-          <div>
-            <h3 style={{ margin: '4px 0' }}>Text data summary</h3>
             <p style={{ color: 'var(--ink-dim)', fontSize: '.9rem' }}>{summarizeSeries(d.points)} {d.mappingNote}</p>
-          </div>
+          </details>
           <div className="row">
             <input type="text" placeholder="Name this experience…" value={expName} onChange={(e) => setExpName(e.target.value)}
               aria-label="Experience name" style={{ flex: '1 1 180px' }} />

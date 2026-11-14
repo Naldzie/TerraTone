@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, session, shell } = require('electron');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
@@ -182,6 +182,13 @@ async function createWindow() {
 app.setAppUserModelId('com.terratone.app');
 
 app.whenReady().then(async () => {
+  // NASA SVS only sends CORS headers for its partner site; let the app read it.
+  session.defaultSession.webRequest.onHeadersReceived({ urls: ['https://svs.gsfc.nasa.gov/*', 'http://svs.gsfc.nasa.gov/*'] }, (details, callback) => {
+    const headers = { ...details.responseHeaders };
+    for (const k of Object.keys(headers)) if (k.toLowerCase() === 'access-control-allow-origin') delete headers[k];
+    headers['Access-Control-Allow-Origin'] = ['*'];
+    callback({ responseHeaders: headers });
+  });
   server = await startServer(path.join(__dirname, 'dist'));
   await createWindow();
   app.on('activate', () => {

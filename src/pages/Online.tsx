@@ -3,6 +3,7 @@ import { ApodPanel } from '../components/ApodPanel';
 import { EpicPanel } from '../components/EpicPanel';
 import { Icon } from '../components/Icon';
 import { HelpTip } from '../components/HelpTip';
+import { FiresPanel, SvsPanel } from '../components/NasaFeeds';
 import { LiveReadout, LiveSnapshot, VAR_ICON } from '../components/LiveNow';
 import { PlacePickerMap } from '../components/PlacePickerMap';
 import { Listen } from './Listen';
@@ -53,6 +54,15 @@ export function Online() {
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const [err, setErr] = useState<{ msg: string; auto?: boolean } | null>(null);
   const [liveDs, setLiveDs] = useState<DatasetMeta | null>(null);
+  /** A FIRMS / SVS dataset playing in the console (kept apart from the POWER readout). */
+  const [feedDs, setFeedDs] = useState<DatasetMeta | null>(null);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  const playFeed = useCallback((d: DatasetMeta) => {
+    addSessionDataset(d);
+    selectDataset(d.id);
+    setFeedDs(d);
+    window.setTimeout(() => consoleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  }, [addSessionDataset, selectDataset]);
 
   const windows = POWER_LIVE_WINDOWS;
   /** Precipitation only exists as a daily product — fall back to the first daily window. */
@@ -301,12 +311,23 @@ export function Online() {
         onAdopt={adopt}
       />
 
-      {liveDs && (
+      <div ref={consoleRef} />
+      {(liveDs || feedDs) && (
         <>
           <div className="section-title"><h2>Live console</h2><span>same experience as the Listen tab</span></div>
           <Listen />
         </>
       )}
+
+      <div className="section-title">
+        <h2>Active fires</h2><span>NASA FIRMS · VIIRS near real time</span>
+      </div>
+      <FiresPanel disabled={offline} onPlay={playFeed} />
+
+      <div className="section-title">
+        <h2>NASA visualizations</h2><span>Scientific Visualization Studio · Earth Information Center</span>
+      </div>
+      <SvsPanel disabled={offline} onPlay={playFeed} />
 
       <div className="section-title"><h2>Earth from space</h2><span>EPIC · keyless</span></div>
       <EpicPanel />

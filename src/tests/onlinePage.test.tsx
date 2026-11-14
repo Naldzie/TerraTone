@@ -20,7 +20,8 @@ vi.mock('../components/PlacePickerMap', () => ({
     </button>
   ),
 }));
-vi.mock('../components/Player', () => ({ Player: () => <div data-testid="player" /> }));
+vi.mock('../components/Player', () => ({ Player: ({ soundSettings }: { soundSettings?: React.ReactNode }) => <div data-testid="player">{soundSettings}</div> }));
+vi.mock('../components/NasaFeeds', () => ({ FiresPanel: () => <div data-testid="firms" />, SvsPanel: () => <div data-testid="svs" /> }));
 vi.mock('../components/InstrumentProfilePanel', () => ({ InstrumentProfilePanel: () => <div data-testid="profile" /> }));
 vi.mock('../components/AiExplain', () => ({ AiExplain: () => <div data-testid="ai" /> }));
 

@@ -73,6 +73,45 @@ function localInstallers(): Plugin {
   };
 }
 
+/**
+ * Dev-only relay for NASA SVS (its CORS only allows its partner origin), so
+ * `npm run dev` behaves like the deployed site's /api/svs functions.
+ */
+function nasaDevRelay(): Plugin {
+  const svsBase = (process.env.VITE_SVS_API_BASE || 'https://svs.gsfc.nasa.gov/api').replace(/\/+$/, '');
+  return {
+    name: 'terratone-nasa-dev-relay',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        let target = '';
+        if (url.pathname.startsWith('/api/svs/')) {
+          const rest = url.pathname.slice('/api/svs/'.length);
+          if (/^(search\/?|\d{1,7}\/?)$/.test(rest)) target = `${svsBase}/${rest}${url.search}`;
+        } else if (url.pathname === '/api/svs-image') {
+          try {
+            const t = new URL(url.searchParams.get('url') ?? '');
+            if (t.hostname === 'svs.gsfc.nasa.gov') { t.protocol = 'https:'; target = t.toString(); }
+          } catch { /* bad url */ }
+        } else {
+          next();
+          return;
+        }
+        if (!target) { res.statusCode = 400; res.end('Unsupported SVS path'); return; }
+        try {
+          const r = await fetch(target);
+          res.statusCode = r.status;
+          res.setHeader('Content-Type', r.headers.get('content-type') ?? 'application/octet-stream');
+          res.end(Buffer.from(await r.arrayBuffer()));
+        } catch (e) {
+          res.statusCode = 502;
+          res.end(String(e));
+        }
+      });
+    },
+  };
+}
+
 // Hosted builds (VITE_API_PROXY set, e.g. Netlify) reach the APIs through the
 // key-holding server functions. Never bake the owner's keys into the public
 // bundle there, even if they were added to the host as VITE_* variables.
@@ -80,12 +119,15 @@ function localInstallers(): Plugin {
 if (process.env.VITE_API_PROXY) {
   process.env.VITE_GEMINI_API_KEY = '';
   process.env.VITE_NASA_API_KEY = '';
+  process.env.VITE_FIRMS_MAP_KEY = '';
 }
+// The Earthdata login token is a personal credential: never ship it in a bundle.
+process.env.VITE_EARTHDATA_TOKEN = '';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 export default defineConfig({
-  plugins: [react(), localInstallers()],
+  plugins: [react(), localInstallers(), nasaDevRelay()],
   // App version shown on the download page (single source: package.json).
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   server: {

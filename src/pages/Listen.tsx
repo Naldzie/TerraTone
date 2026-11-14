@@ -44,18 +44,20 @@ export function Listen() {
           <span><Icon name="clock" /> {d.coverage}</span>
         </div>
       </div>
-      <div className="card" style={{ marginBottom: 12 }}>
-        <div className="field" style={{ margin: 0 }}>
-          <label htmlFor="prof">Sound style{' '}
-            <HelpTip label="sound style">{PROFILES.find((p) => p.id === mapping.profileId)?.blurb}</HelpTip>
-          </label>
-          <select id="prof" value={mapping.profileId} onChange={(e) => updateMapping({ profileId: e.target.value as never })}>
-            {PROFILES.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.minFreq}–{p.maxFreq} Hz</option>)}
-          </select>
-        </div>
-        <InstrumentProfilePanel embedded playing={datasetPlaying} />
-      </div>
-      <Player onPlayingChange={setDatasetPlaying} />
+      <Player onPlayingChange={setDatasetPlaying} soundSettings={(
+        <>
+          <h4>Sound</h4>
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="prof">Sound style{' '}
+              <HelpTip label="sound style">{PROFILES.find((p) => p.id === mapping.profileId)?.blurb}</HelpTip>
+            </label>
+            <select id="prof" value={mapping.profileId} onChange={(e) => updateMapping({ profileId: e.target.value as never })}>
+              {PROFILES.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.minFreq}–{p.maxFreq} Hz</option>)}
+            </select>
+          </div>
+          <InstrumentProfilePanel embedded playing={datasetPlaying} />
+        </>
+      )} />
       <AiExplain brief={{
         title: d.title,
         units: d.units,
