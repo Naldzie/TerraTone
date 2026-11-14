@@ -15,13 +15,11 @@
   NODE_VERSION = "24"
   # The app calls these key-holding proxies when a visitor has no own key.
   VITE_API_PROXY = "/api"
-  # Netlify's secret scanner false-positives on these two PUBLIC NASA endpoint
-  # URLs: they ship in the client bundle on purpose (VITE_ = public) and are
-  # hardcoded as fallbacks in src/lib/nasa.ts and src/lib/nasaApis.ts.
-  # Omit the keys from standard scanning and the URL strings from smart
-  # detection; neither value is a secret.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_CMR_API_BASE,VITE_FIRMS_API_BASE"
-  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "https://cmr.earthdata.nasa.gov/search,https://firms.modaps.eosdis.nasa.gov/api,https://firms.modaps.eosdis.nasa.gov/api/map_key"
+  # The public NASA API base URLs (VITE_CMR_API_BASE and VITE_FIRMS_API_BASE)
+  # ship in the client bundle on purpose. The secret scanner's omission for
+  # them is a SECRETS_SCAN_* variable configured in the Netlify UI — never put
+  # its value in this file: the scanner scans the repo for values of
+  # SECRET-named env vars and would fail the build on this file itself.
   # Download buttons use the Google Drive installers built into
   # src/lib/install.ts (HOSTED_INSTALLERS); no setting needed here.
 
