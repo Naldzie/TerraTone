@@ -16,10 +16,12 @@
   # The app calls these key-holding proxies when a visitor has no own key.
   VITE_API_PROXY = "/api"
   # The public NASA API base URLs (VITE_CMR_API_BASE and VITE_FIRMS_API_BASE)
-  # ship in the client bundle on purpose. The secret scanner's omission for
-  # them is a SECRETS_SCAN_* variable configured in the Netlify UI — never put
-  # its value in this file: the scanner scans the repo for values of
-  # SECRET-named env vars and would fail the build on this file itself.
+  # ship in the client bundle on purpose, so the scanner needs an omission for
+  # their key names. It lives here because netlify.toml overrides the UI var —
+  # but with the comma TOML-escaped (\u002c): the scanner also scans this file
+  # for the values of SECRET-named env vars, and the plain comma-separated
+  # value written here would make the build fail on its own config.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_CMR_API_BASE\u002cVITE_FIRMS_API_BASE"
   # Download buttons use the Google Drive installers built into
   # src/lib/install.ts (HOSTED_INSTALLERS); no setting needed here.
 
