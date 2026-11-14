@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { GuidedTour } from './GuidedTour';
-import { TOURS } from '../lib/tours';
+import { TOURS, dismissLandingTour, landingTourPending } from '../lib/tours';
 import {
   detectInstallPlatform,
   installerAvailable,
@@ -251,6 +251,18 @@ export function LaunchLanding({ onProceed, nativeShell = false, active = true }:
   useEffect(() => {
     if (!active) return;
     proceedRef.current?.focus();
+  }, [active]);
+
+  /* First visit to the website: walk the newcomer through the landing page
+   * automatically, once per device (the Guide button replays it any time). */
+  useEffect(() => {
+    if (!active || !landingTourPending()) return;
+    const timer = window.setTimeout(() => {
+      dismissLandingTour();
+      setPage('welcome');
+      setTouring(true);
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [active]);
 
   useEffect(() => subscribeInstallPrompt(setPromptReady), []);

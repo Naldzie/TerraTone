@@ -427,3 +427,22 @@ export function dismissTourOffer(): void {
     window.localStorage.setItem(OFFER_KEY, 'done');
   } catch { /* storage blocked: the offer just shows again next time */ }
 }
+
+/* ---------- first-visit landing tour (auto-starts once per device) ---------- */
+
+const LANDING_TOUR_KEY = 'terratone.landingTour.v1';
+
+/** True until the landing tour has started once on this device. */
+export function landingTourPending(): boolean {
+  try {
+    return window.localStorage.getItem(LANDING_TOUR_KEY) == null;
+  } catch {
+    return false;
+  }
+}
+
+export function dismissLandingTour(): void {
+  try {
+    window.localStorage.setItem(LANDING_TOUR_KEY, 'done');
+  } catch { /* storage blocked: the tour just does not auto-start */ }
+}

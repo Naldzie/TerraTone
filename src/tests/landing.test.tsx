@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LaunchLanding } from '../components/LaunchLanding';
+import { dismissLandingTour, landingTourPending } from '../lib/tours';
 
 function goTo(label: 'Welcome' | 'Download' | 'Stats' | 'About' | 'Privacy') {
   fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }));
@@ -14,6 +15,9 @@ describe('LaunchLanding', () => {
     vi.stubEnv('VITE_INSTALLER_IOS', '');
     vi.stubEnv('VITE_GITHUB_REPO', '');
     localStorage.clear();
+    // The landing tour auto-starts on a first visit; keep it out of the way
+    // unless a test explicitly asks for it (see the first-visit test below).
+    dismissLandingTour();
     // The download button probes same-origin installers first; answer like a
     // server that has a real (large, binary) installer ready.
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, {
@@ -97,6 +101,23 @@ describe('LaunchLanding', () => {
     render(<LaunchLanding onProceed={onProceed} />);
     fireEvent.click(screen.getByRole('button', { name: /proceed to website/i }));
     expect(onProceed).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the guided tour automatically on a first visit', async () => {
+    // A fresh device has never seen the landing tour.
+    localStorage.clear();
+    expect(landingTourPending()).toBe(true);
+    Element.prototype.scrollIntoView = vi.fn();
+    render(<LaunchLanding onProceed={() => undefined} />);
+    const dialog = await screen.findByRole('dialog', { name: /welcome to terratone/i }, { timeout: 4000 });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Step 1 of 5')).toBeInTheDocument();
+    // Remembered on this device, so the tour does not restart on the next visit.
+    expect(landingTourPending()).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: /skip tour/i }));
+    cleanup();
+    render(<LaunchLanding onProceed={() => undefined} />);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 1000 });
   });
 
   it('stays inert behind the intro until it is revealed', () => {
