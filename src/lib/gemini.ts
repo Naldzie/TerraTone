@@ -95,8 +95,8 @@ async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   const t = setTimeout(() => ctrl.abort(), 25000);
   try {
     const res = await fetch(url, init);
-    if (res.status === 400 || res.status === 403) {
-      throw new AiHttpError(res.status, 'The AI service rejected the key (HTTP ' + res.status + '). Check the Gemini key in Settings → API keys — AI Studio keys start with "AIza".');
+    if (res.status === 400 || res.status === 403 || res.status === 401) {
+      throw new AiHttpError(res.status, 'The AI service rejected the key (HTTP ' + res.status + '). Get a fresh key at aistudio.google.com/apikey and paste it in Settings → API keys.');
     }
     if (res.status === 429) throw new AiHttpError(429, 'AI quota exceeded. Wait a bit and retry.');
     if (res.status === 404) throw new AiHttpError(404, 'That AI model ID is gone (HTTP 404).');
@@ -120,7 +120,7 @@ function geminiUrl(path: string, key: string): string {
 
 /** A rejected key on the site's shared proxy is the site owner's to fix, not the visitor's. */
 function siteKeyError(e: unknown, key: string): unknown {
-  if (!key && e instanceof AiHttpError && (e.status === 400 || e.status === 403)) {
+  if (!key && e instanceof AiHttpError && (e.status === 400 || e.status === 401 || e.status === 403)) {
     return new AiHttpError(e.status, `This website's shared Gemini key was rejected (HTTP ${e.status}). You can add your own free key in Settings → API keys meanwhile.`);
   }
   return e;

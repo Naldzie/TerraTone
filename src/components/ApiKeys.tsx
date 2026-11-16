@@ -16,6 +16,19 @@ function KeyRow({ which, label, hint, docs }: {
   const [draft, setDraft] = useState('');
   const [msg, setMsg] = useState('');
 
+  const onSave = () => {
+    const v = draft.trim();
+    // Google rejects malformed keys with HTTP 401 — catch common paste mistakes
+    // here instead of at request time. Accepted formats: classic "AIzaSy…" keys
+    // and the newer "AQ.…" AI Studio keys.
+    const badGemini = which === 'gemini' && v.length > 0 && !/^(AIza[\w-]{10,}|AQ\.[\w-]{10,})$/.test(v);
+    save(v);
+    setDraft('');
+    setMsg(badGemini
+      ? 'Saved, but this does not look like a Gemini key (usually "AIza…" or "AQ.…"). AI will fail until a valid key is pasted.'
+      : 'Saved in this browser only.');
+  };
+
   return (
     <div className="field">
       <label htmlFor={`key-${which}`}>{label}: <Icon name={source === 'none' ? 'x' : 'check'} /> {SOURCE_LABEL[source]}</label>
@@ -29,7 +42,7 @@ function KeyRow({ which, label, hint, docs }: {
           onChange={(e) => setDraft(e.target.value)}
           style={{ flex: '2 1 200px' }}
         />
-        <button className="btn sm" disabled={!draft.trim()} onClick={() => { save(draft); setDraft(''); setMsg('Saved in this browser only.'); }}>
+        <button className="btn sm" disabled={!draft.trim()} onClick={onSave}>
           <Icon name="save" /> Save
         </button>
         {source === 'device' && <button className="btn sm danger" onClick={() => { clear(); setDraft(''); setMsg('Removed from this browser.'); }}>Remove</button>}
@@ -59,7 +72,7 @@ export function ApiKeys() {
       <KeyRow
         which="gemini"
         label="Gemini API key"
-        hint='Enables AI explanations. AI Studio keys start with "AIza". If calls fail with HTTP 400/403, the key is wrong or restricted — generate a fresh one.'
+        hint='Enables AI explanations. If calls fail with HTTP 401/400/403, the key is missing, wrong, or restricted — generate a fresh one at aistudio.google.com.'
         docs="aistudio.google.com"
       />
       <small style={{ color: 'var(--ink-faint)' }}>
